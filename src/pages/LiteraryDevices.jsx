@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import { claudeChat } from '../lib/claude'
 import { fetchGutenbergPassages } from '../lib/gutenberg'
@@ -166,14 +166,13 @@ function ExamplesPanel({ device, ageGroup, cache, setCache }) {
 
   const data = cache[device.name]
 
-  // Auto-load on mount if not cached
-  useState(() => {
-    if (data) return
+  // Trigger a fetch whenever the selected device changes, unless already cached
+  useEffect(() => {
+    if (cache[device.name]) return
     loadExamples()
-  })
+  }, [device.name]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadExamples() {
-    if (cache[device.name]) return
     setLoading(true); setErrorMsg('')
     try {
       const [gutenbergPassages, generatedRaw] = await Promise.all([
@@ -204,8 +203,8 @@ function ExamplesPanel({ device, ageGroup, cache, setCache }) {
 
       {loading && (
         <div className="p-8 flex flex-col items-center gap-2" style={S.border}>
-          <p className="font-sans text-xs tracking-widest uppercase" style={S.hint}>Fetching from Project Gutenberg...</p>
-          <p className="font-sans text-xs" style={{ color: 'rgba(138,122,104,0.5)' }}>Pulling real passages from classic literature</p>
+          <p className="font-sans text-xs tracking-widest uppercase" style={S.hint}>Finding examples...</p>
+          <p className="font-sans text-xs" style={{ color: 'rgba(138,122,104,0.5)' }}>Pulling passages from classic literature</p>
         </div>
       )}
 
@@ -233,7 +232,7 @@ function ExamplesPanel({ device, ageGroup, cache, setCache }) {
               <p className="font-sans text-xs tracking-widest uppercase" style={S.label}>From Classic Literature</p>
               <span className="font-sans text-xs px-2 py-0.5"
                 style={{ background: 'rgba(212,175,55,0.1)', color: '#D4AF37', border: '1px solid rgba(212,175,55,0.3)' }}>
-                Project Gutenberg
+                Public Domain
               </span>
             </div>
             <div className="space-y-4">
@@ -359,7 +358,7 @@ export default function LiteraryDevices() {
         <div className="gold-bar w-16 mb-3" />
         <p className="font-sans text-sm" style={S.body}>
           Flip a card to see the definition, then explore real examples from{' '}
-          <span style={S.label}>Project Gutenberg</span>. Or look up any device you like.
+          <span style={S.label}>classic literature</span>. Or look up any device you like.
         </p>
       </div>
 
