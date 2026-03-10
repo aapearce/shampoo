@@ -7,78 +7,67 @@ export default function Layout() {
   const navigate = useNavigate()
 
   return (
-    <div className="grain min-h-screen flex flex-col bg-graphite">
+    <div className="grain min-h-screen flex flex-col" style={{background:'#0B1628',color:'#F5ECD7'}}>
 
-      {/* Top gold accent bar */}
+      {/* Top gold bar */}
       <div className="gold-bar" />
 
       {/* Header */}
-      <header className="border-b border-g800">
+      <header style={{borderBottom:'1px solid #1A3358'}}>
         <div className="max-w-7xl mx-auto px-6">
 
-          {/* Top row: logo + age selector + badges */}
+          {/* Logo row */}
           <div className="flex items-center justify-between py-4">
             <button onClick={() => navigate('/')} className="text-left">
-              <div className="flex items-center gap-3">
-                <div>
-                  <h1 className="font-serif text-2xl font-bold text-silver tracking-widest uppercase leading-none">
-                    Shampoo
-                  </h1>
-                  <p className="font-sans text-xs tracking-widest text-gold uppercase mt-0.5">
-                    Creative Writing Academy
-                  </p>
-                </div>
-              </div>
+              <h1 className="font-serif text-2xl font-bold tracking-widest uppercase leading-none" style={{color:'#F5ECD7'}}>
+                Shampoo
+              </h1>
+              <p className="font-sans text-xs tracking-widest uppercase mt-0.5" style={{color:'#D4AF37'}}>
+                Creative Writing Academy
+              </p>
             </button>
 
-            {/* Age selector — persistent */}
+            {/* Age selector */}
             <div className="flex items-center gap-2">
-              <span className="font-sans text-xs text-g600 tracking-widest uppercase mr-2 hidden sm:block">Age Group</span>
+              <span className="font-sans text-xs tracking-widest uppercase mr-2 hidden sm:block" style={{color:'#8A7A68'}}>Age Group</span>
               {AGE_GROUPS.map(ag => (
-                <button
-                  key={ag.value}
-                  onClick={() => setAgeGroup(ag.value)}
-                  className={`font-sans text-xs px-3 py-1.5 border tracking-wide transition-all ${
-                    ageGroup === ag.value
-                      ? 'border-gold text-gold bg-gold/10'
-                      : 'border-g800 text-g600 hover:border-g700 hover:text-silver'
-                  }`}
-                >
+                <button key={ag.value} onClick={() => setAgeGroup(ag.value)}
+                  className="font-sans text-xs px-3 py-1.5 border tracking-wide transition-all"
+                  style={ageGroup === ag.value
+                    ? {borderColor:'#D4AF37', color:'#D4AF37', background:'rgba(212,175,55,0.1)'}
+                    : {borderColor:'#1A3358', color:'#C8B99A'}
+                  }>
                   {ag.label}
                 </button>
               ))}
             </div>
 
             {/* Badge counter */}
-            <button
-              onClick={() => navigate('/badges')}
-              className="flex items-center gap-2 border border-g800 px-3 py-1.5 hover:border-gold transition-colors group"
-            >
+            <button onClick={() => navigate('/badges')}
+              className="flex items-center gap-2 px-3 py-1.5 transition-colors"
+              style={{border:'1px solid #1A3358'}}>
               <span className="text-sm">🏆</span>
-              <span className="font-sans text-xs text-g600 group-hover:text-gold transition-colors">
+              <span className="font-sans text-xs" style={{color:'#C8B99A'}}>
                 {earnedCount}/{badges.length} Badges
               </span>
             </button>
           </div>
 
           {/* Nav tabs */}
-          <nav className="flex gap-0 -mb-px">
+          <nav className="flex gap-0" style={{borderBottom:'none'}}>
             {[
-              { to: '/upload-assess',     label: 'Upload & Assess' },
-              { to: '/generate',          label: 'Generate & Brainstorm' },
-              { to: '/literary-devices',  label: 'Literary Devices' },
-              { to: '/comprehension',     label: 'Comprehension' },
+              { to: '/upload-assess',    label: 'Upload & Assess' },
+              { to: '/generate',         label: 'Generate & Brainstorm' },
+              { to: '/literary-devices', label: 'Literary Devices' },
+              { to: '/comprehension',    label: 'Comprehension' },
             ].map(({ to, label }) => (
-              <NavLink
-                key={to}
-                to={to}
+              <NavLink key={to} to={to}
                 className={({ isActive }) =>
                   `font-sans text-xs tracking-widest uppercase px-5 py-3 border-b-2 transition-colors ${
-                    isActive
-                      ? 'border-gold text-gold'
-                      : 'border-transparent text-g600 hover:text-silver'
+                    isActive ? 'border-gold text-gold' : 'border-transparent'
                   }`
                 }
+                style={({ isActive }) => isActive ? {color:'#D4AF37',borderColor:'#D4AF37'} : {color:'#C8B99A'}}
               >
                 {label}
               </NavLink>
@@ -93,11 +82,11 @@ export default function Layout() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-g800 py-4">
+      <footer style={{borderTop:'1px solid #1A3358'}} className="py-4">
         <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
-          <span className="font-sans text-xs text-g600 tracking-widest uppercase">Shampoo Academy</span>
+          <span className="font-sans text-xs tracking-widest uppercase" style={{color:'#8A7A68'}}>Shampoo Academy</span>
           <div className="gold-bar w-24" />
-          <span className="font-sans text-xs text-g600">Excellence in Creative Writing</span>
+          <span className="font-sans text-xs" style={{color:'#8A7A68'}}>Excellence in Creative Writing</span>
         </div>
       </footer>
 
