@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { claudeChat } from '../lib/claude'
-import { CLASSIC_PASSAGES } from '../data/literaryPassages'
+import { DEVICE_SOURCES, fetchGutenbergPassage } from '../lib/gutenberg'
 
 const DEVICES = [
   { name:'Simile',              def:'A comparison using "like" or "as"',                              emoji:'🌸' },
@@ -46,73 +46,132 @@ const S = {
   input: { background: 'rgba(17,32,64,0.6)', border: '1px solid #1A3358', color: '#F5ECD7' },
 }
 
-// Classic passage card — text is hardcoded, "Read more" expands via AI
-function ClassicCard({ c, deviceName }) {
-  const [expanded, setExpanded] = useState(false)
-  const [fullText, setFullText] = useState('')
-  const [loading, setLoading]   = useState(false)
+// A single classic passage card — text sourced live from Gutenberg
+function ClassicCard({ deviceName, deviceDef, sourceKey }) {
+  const [state, setState] = useState('idle') // idle | loading | done | error
+  const [data, setData]   = useState(null)   // { passage, explanation, bookTitle, author, expanded }
 
-  async function handleExpand() {
-    if (expanded) { setExpanded(false); return }
-    setExpanded(true)
-    if (fullText) return
-    setLoading(true)
+  async function load() {
+    if (state === 'loading') return
+    if (state === 'done') {
+      setData(d => ({ ...d, expanded: !d.expanded }))
+      return
+    }
+    setState('loading')
     try {
+      // 1. Fetch raw text from Gutenberg
+      const { rawText, bookTitle, author } = await fetchGutenbergPassage(deviceName, sourceKey)
+
+      // 2. Ask Claude to find + extract a passage demonstrating the device
       const result = await claudeChat({
+        system: 'Return ONLY valid JSON. No markdown. Structure: {"passage":"...","explanation":"..."}',
         messages: [{
           role: 'user',
-          content: `Provide a longer excerpt (10–15 lines) from the public domain work "${c.source}" that demonstrates the literary device "${deviceName}". The short passage shown is: "${c.text}". Return only the extended passage text, no explanation or preamble.`
+          content: `From the following text excerpt, find a passage (3–8 sentences) that clearly demonstrates the literary device "${deviceName}" (${deviceDef}). Extract the passage exactly as written, then write a one-sentence explanation of how it demonstrates the device.\n\nText:\n${rawText}`
         }]
       })
-      setFullText(result)
-    } catch {
-      setFullText('Could not load the extended passage. Please try again.')
+
+      const parsed = JSON.parse(result.replace(/```json|```/g, '').trim())
+      setData({
+        passage:     parsed.passage,
+        explanation: parsed.explanation,
+        bookTitle,
+        author,
+        expanded: false,
+      })
+      setState('done')
+    } catch(e) {
+      console.error(e)
+      setState('error')
     }
-    setLoading(false)
+  }
+
+  const bookLabels = {
+    shakespeare:  'Shakespeare — Complete Works',
+    austen_pp:    'Jane Austen — Pride and Prejudice',
+    dickens_ttc:  'Charles Dickens — A Tale of Two Cities',
+    dickens_gc:   'Charles Dickens — Great Expectations',
+    hardy_tess:   'Thomas Hardy — Tess of the d\'Urbervilles',
+    eliot_mm:     'George Eliot — Middlemarch',
+    poe:          'Edgar Allan Poe — Selected Works',
+    keats:        'John Keats — Poems',
+    bronte_je:    'Charlotte Brontë — Jane Eyre',
+    hardy_rn:     'Thomas Hardy — The Return of the Native',
+    shelley_fr:   'Mary Shelley — Frankenstein',
+    swift_gt:     "Jonathan Swift — Gulliver's Travels",
+    defoe_rc:     'Daniel Defoe — Robinson Crusoe',
+    bunyan:       "John Bunyan — The Pilgrim's Progress",
+    homer_iliad:  'Homer — The Iliad',
   }
 
   return (
     <div className="p-4" style={{ background: 'rgba(17,32,64,0.4)', border: '1px solid #1A3358' }}>
 
-      {/* Fixed short passage */}
-      <p className="font-serif text-sm italic leading-relaxed mb-3"
-        style={{ color: 'rgba(245,236,215,0.8)' }}>
-        {c.text}
-      </p>
-
-      {/* Expanded longer passage — AI generated on demand */}
-      {expanded && (
-        <div className="mb-3 pt-3" style={{ borderTop: '1px solid #1A3358' }}>
-          {loading
-            ? <p className="font-sans text-xs italic" style={S.hint}>Loading passage...</p>
-            : <p className="font-serif text-sm italic leading-relaxed" style={{ color: 'rgba(245,236,215,0.85)' }}>{fullText}</p>
-          }
+      {/* Book label + load button when idle */}
+      {state === 'idle' && (
+        <div className="flex items-center justify-between">
+          <span className="font-sans text-xs" style={S.hint}>{bookLabels[sourceKey]}</span>
+          <button onClick={load}
+            className="font-sans text-xs whitespace-nowrap transition-colors"
+            style={{ color: '#7A9CC0' }}>
+            Load passage →
+          </button>
         </div>
       )}
 
-      {/* Footer */}
-      <div className="flex items-start justify-between gap-3 mt-1">
-        <div>
-          <span className="font-sans text-xs block mb-1" style={{ color: 'rgba(212,175,55,0.7)' }}>— {c.source}</span>
-          <p className="font-sans text-xs" style={S.hint}>{c.explanation}</p>
+      {state === 'loading' && (
+        <div className="flex items-center gap-3">
+          <span className="font-sans text-xs" style={S.hint}>{bookLabels[sourceKey]}</span>
+          <span className="font-sans text-xs italic" style={{ color: '#4A6A8A' }}>Fetching from Gutenberg...</span>
         </div>
-        <button onClick={handleExpand}
-          className="font-sans text-xs whitespace-nowrap transition-colors shrink-0"
-          style={{ color: '#7A9CC0' }}>
-          {expanded ? '↑ Show less' : '↓ Read more'}
-        </button>
-      </div>
+      )}
+
+      {state === 'error' && (
+        <div className="flex items-center justify-between">
+          <span className="font-sans text-xs" style={{ color: '#f87171' }}>Failed to load — {bookLabels[sourceKey]}</span>
+          <button onClick={() => { setState('idle') }}
+            className="font-sans text-xs" style={{ color: '#7A9CC0' }}>Retry</button>
+        </div>
+      )}
+
+      {state === 'done' && data && (
+        <>
+          {/* Always show: short passage preview (first 200 chars) */}
+          <p className="font-serif text-sm italic leading-relaxed mb-3"
+            style={{ color: 'rgba(245,236,215,0.8)' }}>
+            {data.expanded ? data.passage : `${data.passage.slice(0, 220)}${data.passage.length > 220 ? '…' : ''}`}
+          </p>
+
+          {/* Source + explanation + expand toggle */}
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <span className="font-sans text-xs block mb-1" style={{ color: 'rgba(212,175,55,0.7)' }}>
+                — {data.bookTitle}{data.author ? `, ${data.author}` : ''}
+              </span>
+              <p className="font-sans text-xs" style={S.hint}>{data.explanation}</p>
+            </div>
+            {data.passage.length > 220 && (
+              <button
+                onClick={() => setData(d => ({ ...d, expanded: !d.expanded }))}
+                className="font-sans text-xs whitespace-nowrap shrink-0 transition-colors"
+                style={{ color: '#7A9CC0' }}>
+                {data.expanded ? '↑ Show less' : '↓ Read more'}
+              </button>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }
 
 export default function LiteraryDevices() {
   const { ageGroup } = useApp()
-  const [selected, setSelected]       = useState(null)
-  const [generated, setGenerated]     = useState({})  // AI examples, cached per device
-  const [genLoading, setGenLoading]   = useState(false)
-  const [errorMsg, setErrorMsg]       = useState('')
-  const [search, setSearch]           = useState('')
+  const [selected, setSelected]     = useState(null)
+  const [generated, setGenerated]   = useState({})
+  const [genLoading, setGenLoading] = useState(false)
+  const [errorMsg, setErrorMsg]     = useState('')
+  const [search, setSearch]         = useState('')
 
   const filtered = DEVICES.filter(d =>
     d.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -122,16 +181,12 @@ export default function LiteraryDevices() {
   async function selectDevice(device) {
     setSelected(device)
     setErrorMsg('')
-
-    // Classic passages are instant — loaded from static data
-    // Only call API if we don't have generated examples yet
     if (generated[device.name]) return
-
     setGenLoading(true)
     try {
       const raw = await claudeChat({
         system: 'Return ONLY valid JSON, no markdown. Structure: {"generated":[{"text":"...","explanation":"..."}]}',
-        messages: [{ role: 'user', content: `Give 3 original creative examples of the literary device "${device.name}" (${device.def}) suitable for students aged ${ageGroup}. Each should be a fresh, vivid sentence or two.` }],
+        messages: [{ role: 'user', content: `Give 3 original creative examples of the literary device "${device.name}" (${device.def}) suitable for students aged ${ageGroup}. Each should be a vivid sentence or two.` }],
       })
       const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim())
       setGenerated(prev => ({ ...prev, [device.name]: parsed.generated || [] }))
@@ -142,7 +197,7 @@ export default function LiteraryDevices() {
     setGenLoading(false)
   }
 
-  const classicPassages = selected ? (CLASSIC_PASSAGES[selected.name] || []) : []
+  const sources = selected ? (DEVICE_SOURCES[selected.name] || []) : []
   const generatedExamples = selected ? (generated[selected.name] || null) : null
 
   return (
@@ -151,7 +206,10 @@ export default function LiteraryDevices() {
         <p className="font-sans text-xs tracking-widest uppercase mb-2" style={S.label}>Module 03</p>
         <h2 className="font-serif text-3xl mb-2" style={S.page}>Literary Devices</h2>
         <div className="gold-bar w-16 mb-3" />
-        <p className="font-sans text-sm" style={S.body}>Explore every major literary device with AI-generated examples and passages from classic English literature.</p>
+        <p className="font-sans text-sm" style={S.body}>
+          Explore every major literary device with AI-generated examples and real passages fetched live from{' '}
+          <span style={S.label}>Project Gutenberg</span>.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -206,12 +264,12 @@ export default function LiteraryDevices() {
                 </div>
               )}
 
-              {/* Generated examples — AI, fresh per session, cached per device */}
+              {/* AI-generated examples */}
               <div className="p-5 mb-4" style={S.border}>
                 <p className="font-sans text-xs tracking-widest uppercase mb-3" style={S.label}>Generated Examples</p>
                 {genLoading ? (
                   <p className="font-sans text-xs italic" style={S.hint}>Generating examples...</p>
-                ) : generatedExamples && generatedExamples.length > 0 ? (
+                ) : generatedExamples?.length > 0 ? (
                   <div className="space-y-3">
                     {generatedExamples.map((g, i) => (
                       <div key={i} className="pl-4" style={{ borderLeft: '2px solid #1F3A5F' }}>
@@ -225,18 +283,24 @@ export default function LiteraryDevices() {
                 )}
               </div>
 
-              {/* Classic passages — always the same, loaded from static data instantly */}
+              {/* Live Gutenberg passages — lazy loaded per card */}
               <div className="p-5" style={S.border}>
-                <p className="font-sans text-xs tracking-widest uppercase mb-3" style={S.label}>From Classic Literature</p>
-                {classicPassages.length > 0 ? (
-                  <div className="space-y-4">
-                    {classicPassages.map((c, i) => (
-                      <ClassicCard key={i} c={c} deviceName={selected.name} />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="font-sans text-xs italic" style={S.hint}>No classic examples available for this device.</p>
-                )}
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="font-sans text-xs tracking-widest uppercase" style={S.label}>From Classic Literature</p>
+                </div>
+                <p className="font-sans text-xs mb-4" style={S.hint}>
+                  Passages fetched live from Project Gutenberg — click "Load passage" to retrieve each one.
+                </p>
+                <div className="space-y-3">
+                  {sources.map((sourceKey) => (
+                    <ClassicCard
+                      key={`${selected.name}-${sourceKey}`}
+                      deviceName={selected.name}
+                      deviceDef={selected.def}
+                      sourceKey={sourceKey}
+                    />
+                  ))}
+                </div>
               </div>
 
             </div>
