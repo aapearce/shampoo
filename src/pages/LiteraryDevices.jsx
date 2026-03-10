@@ -1,52 +1,114 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import { claudeChat } from '../lib/claude'
 import { fetchGutenbergPassages } from '../lib/gutenberg'
 
 const DEVICES = [
-  { name:'Simile',              def:'A comparison using "like" or "as"',                              emoji:'🌸' },
-  { name:'Metaphor',            def:'A direct comparison without "like" or "as"',                     emoji:'🌻' },
-  { name:'Personification',     def:'Giving human qualities to non-human things',                    emoji:'🪻' },
-  { name:'Alliteration',        def:'Repetition of the same initial consonant sound',                emoji:'🌷' },
-  { name:'Onomatopoeia',        def:'Words that sound like what they describe',                      emoji:'🥐' },
-  { name:'Hyperbole',           def:'Extreme exaggeration for effect',                               emoji:'🍰' },
-  { name:'Idiom',               def:'A phrase with a figurative meaning different from its literal', emoji:'🍩' },
-  { name:'Imagery',             def:'Language that appeals to the senses',                           emoji:'🌹' },
-  { name:'Irony',               def:'When the opposite of what is expected occurs',                  emoji:'🐝' },
-  { name:'Symbolism',           def:'Using an object or action to represent something else',         emoji:'🦋' },
-  { name:'Foreshadowing',       def:'Hints at future events in the story',                           emoji:'🍜' },
-  { name:'Flashback',           def:'A scene set in an earlier time than the main story',            emoji:'🐠' },
-  { name:'Dialogue',            def:'Conversation between characters',                               emoji:'🧁' },
-  { name:'Oxymoron',            def:'Two contradictory terms used together',                         emoji:'🦊' },
-  { name:'Allusion',            def:'A reference to a well-known person, place or event',            emoji:'🦚' },
-  { name:'Anaphora',            def:'Repetition of a word/phrase at the start of successive clauses',emoji:'🌺' },
-  { name:'Juxtaposition',       def:'Placing two contrasting things side by side',                   emoji:'🌿' },
-  { name:'Assonance',           def:'Repetition of vowel sounds in nearby words',                   emoji:'🍃' },
-  { name:'Euphemism',           def:'A mild word substituted for one that might seem harsh',         emoji:'🌾' },
-  { name:'Allegory',            def:'A story with a hidden meaning, often moral or political',      emoji:'🪷' },
-  { name:'Motif',               def:'A recurring element that has symbolic significance',            emoji:'🌙' },
-  { name:'Paradox',             def:'A statement that seems contradictory but contains a truth',    emoji:'🌊' },
-  { name:'Extended Metaphor',   def:'A metaphor sustained throughout a passage or work',             emoji:'🦚' },
-  { name:'Stream of Consciousness', def:'Writing that depicts the uninterrupted flow of thoughts',  emoji:'🌊' },
-  { name:'Tone',                def:"The author's attitude toward the subject or audience",          emoji:'🎵' },
-  { name:'Mood',                def:'The atmosphere or emotional feeling of a piece',                emoji:'🌅' },
-  { name:'Understatement',      def:'Deliberately making something seem less than it is',            emoji:'🤫' },
-  { name:'Sarcasm',             def:'A form of irony intended to mock or show contempt',             emoji:'😏' },
-  { name:'Point of View',       def:'The perspective from which a story is narrated',               emoji:'👁️' },
-  { name:'Flashforward',        def:'A scene set in a future time from the main narrative',          emoji:'⏩' },
+  { name: 'Simile',                   def: 'A comparison using "like" or "as"',                               emoji: '🌸' },
+  { name: 'Metaphor',                 def: 'A direct comparison without "like" or "as"',                      emoji: '🌻' },
+  { name: 'Personification',          def: 'Giving human qualities to non-human things',                     emoji: '🪻' },
+  { name: 'Alliteration',             def: 'Repetition of the same initial consonant sound',                 emoji: '🌷' },
+  { name: 'Onomatopoeia',             def: 'Words that sound like what they describe',                       emoji: '🥐' },
+  { name: 'Hyperbole',                def: 'Extreme exaggeration for effect',                                emoji: '🍰' },
+  { name: 'Idiom',                    def: 'A phrase whose meaning differs from its literal words',          emoji: '🍩' },
+  { name: 'Imagery',                  def: 'Language that appeals to the senses',                            emoji: '🌹' },
+  { name: 'Irony',                    def: 'When the opposite of what is expected occurs',                   emoji: '🐝' },
+  { name: 'Symbolism',                def: 'Using an object or action to represent something else',          emoji: '🦋' },
+  { name: 'Foreshadowing',            def: 'Hints at future events in the story',                            emoji: '🍜' },
+  { name: 'Flashback',                def: 'A scene set in an earlier time than the main story',             emoji: '🐠' },
+  { name: 'Dialogue',                 def: 'Conversation between characters',                                emoji: '🧁' },
+  { name: 'Oxymoron',                 def: 'Two contradictory terms used together',                          emoji: '🦊' },
+  { name: 'Allusion',                 def: 'A reference to a well-known person, place, or event',            emoji: '🦚' },
+  { name: 'Anaphora',                 def: 'Repetition of a word or phrase at the start of successive lines',emoji: '🌺' },
+  { name: 'Juxtaposition',            def: 'Placing two contrasting things side by side',                    emoji: '🌿' },
+  { name: 'Assonance',                def: 'Repetition of vowel sounds in nearby words',                    emoji: '🍃' },
+  { name: 'Euphemism',                def: 'A mild word substituted for one that might seem harsh',          emoji: '🌾' },
+  { name: 'Allegory',                 def: 'A story with a hidden meaning, often moral or political',       emoji: '🪷' },
+  { name: 'Motif',                    def: 'A recurring element that has symbolic significance',             emoji: '🌙' },
+  { name: 'Paradox',                  def: 'A statement that seems contradictory but contains a truth',     emoji: '🌊' },
+  { name: 'Extended Metaphor',        def: 'A metaphor sustained throughout a passage or whole work',        emoji: '🦚' },
+  { name: 'Stream of Consciousness',  def: 'Writing that depicts the uninterrupted flow of thoughts',       emoji: '🌀' },
+  { name: 'Tone',                     def: "The author's attitude toward the subject or audience",           emoji: '🎵' },
+  { name: 'Mood',                     def: 'The atmosphere or emotional feeling of a piece',                 emoji: '🌅' },
+  { name: 'Understatement',           def: 'Deliberately making something seem less than it is',             emoji: '🤫' },
+  { name: 'Sarcasm',                  def: 'A form of irony intended to mock or show contempt',              emoji: '😏' },
+  { name: 'Point of View',            def: 'The perspective from which a story is narrated',                emoji: '👁️' },
+  { name: 'Flashforward',             def: 'A scene set in a future time from the main narrative',           emoji: '⏩' },
 ]
 
 const S = {
-  page:  { color: '#F5ECD7' },
-  label: { color: '#D4AF37' },
-  body:  { color: '#C8B99A' },
-  hint:  { color: '#8A7A68' },
-  border:{ border: '1px solid #1A3358' },
-  card:  { background: 'linear-gradient(135deg,#112040,#0B1628)', border: '1px solid #1A3358' },
-  input: { background: 'rgba(17,32,64,0.6)', border: '1px solid #1A3358', color: '#F5ECD7' },
+  page:   { color: '#F5ECD7' },
+  label:  { color: '#D4AF37' },
+  body:   { color: '#C8B99A' },
+  hint:   { color: '#8A7A68' },
+  border: { border: '1px solid #1A3358' },
+  card:   { background: 'linear-gradient(135deg,#112040,#0B1628)', border: '1px solid #1A3358' },
+  input:  { background: 'rgba(17,32,64,0.6)', border: '1px solid #1A3358', color: '#F5ECD7' },
 }
 
-// Classic passage card — real Gutenberg text, expand loads more context
+// ── Flip card ──────────────────────────────────────────────────────────────────
+function FlashCard({ device, isSelected, onExplore }) {
+  const [flipped, setFlipped] = useState(false)
+
+  return (
+    <div
+      onClick={() => setFlipped(f => !f)}
+      className="cursor-pointer select-none"
+      style={{ perspective: '800px', height: '140px' }}
+    >
+      <div
+        style={{
+          position: 'relative',
+          width: '100%',
+          height: '100%',
+          transformStyle: 'preserve-3d',
+          transition: 'transform 0.45s ease',
+          transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+        }}
+      >
+        {/* Front — name + emoji */}
+        <div
+          style={{
+            position: 'absolute', inset: 0, backfaceVisibility: 'hidden',
+            background: isSelected ? 'rgba(212,175,55,0.08)' : 'linear-gradient(135deg,#112040,#0B1628)',
+            border: isSelected ? '1px solid #D4AF37' : '1px solid #1A3358',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: '8px',
+            padding: '12px',
+          }}
+        >
+          <span style={{ fontSize: '28px' }}>{device.emoji}</span>
+          <span className="font-serif text-sm text-center" style={isSelected ? S.label : S.page}>{device.name}</span>
+          <span className="font-sans text-xs" style={{ color: 'rgba(138,122,104,0.7)' }}>tap to flip</span>
+        </div>
+
+        {/* Back — definition + explore button */}
+        <div
+          style={{
+            position: 'absolute', inset: 0, backfaceVisibility: 'hidden',
+            transform: 'rotateY(180deg)',
+            background: 'linear-gradient(135deg,#1A3358,#112040)',
+            border: '1px solid #2A4A6B',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'space-between',
+            padding: '14px 12px 10px',
+          }}
+        >
+          <p className="font-sans text-xs text-center leading-relaxed" style={S.body}>{device.def}</p>
+          <button
+            onClick={e => { e.stopPropagation(); onExplore(device) }}
+            className="font-sans text-xs tracking-widest uppercase px-3 py-1.5 transition-colors"
+            style={{ background: 'rgba(212,175,55,0.15)', color: '#D4AF37', border: '1px solid rgba(212,175,55,0.4)' }}
+          >
+            Explore examples →
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Classic passage card with expandable context ───────────────────────────────
 function ClassicCard({ c, deviceName }) {
   const [expanded, setExpanded] = useState(false)
   const [fullText, setFullText] = useState('')
@@ -61,13 +123,11 @@ function ClassicCard({ c, deviceName }) {
       const result = await claudeChat({
         messages: [{
           role: 'user',
-          content: `Extend the following passage from "${c.source}" by adding the sentences that come immediately before and after it in the original text, to give more context. The passage is:\n\n"${c.text}"\n\nProvide only the extended passage text — no explanation, no preamble. Keep it to around 10–15 lines.`
+          content: `Extend the following passage from "${c.source}" by adding the sentences that come immediately before and after it in the original text. Passage:\n\n"${c.text}"\n\nReturn only the extended passage, no preamble. Around 10–15 lines.`
         }]
       })
       setFullText(result)
-    } catch {
-      setFullText('Could not load additional context.')
-    }
+    } catch { setFullText('Could not load additional context.') }
     setLoading(false)
   }
 
@@ -90,161 +150,269 @@ function ClassicCard({ c, deviceName }) {
           <p className="font-sans text-xs" style={S.hint}>{c.explanation}</p>
         </div>
         <button onClick={handleExpand}
-          className="font-sans text-xs whitespace-nowrap transition-colors shrink-0"
+          className="font-sans text-xs whitespace-nowrap shrink-0 transition-colors"
           style={{ color: '#7A9CC0' }}>
-          {expanded ? '↑ Less context' : '↓ More context'}
+          {expanded ? '↑ Less' : '↓ More context'}
         </button>
       </div>
     </div>
   )
 }
 
+// ── Examples panel ─────────────────────────────────────────────────────────────
+function ExamplesPanel({ device, ageGroup, cache, setCache }) {
+  const [loading, setLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
+
+  const data = cache[device.name]
+
+  // Auto-load on mount if not cached
+  useState(() => {
+    if (data) return
+    loadExamples()
+  })
+
+  async function loadExamples() {
+    if (cache[device.name]) return
+    setLoading(true); setErrorMsg('')
+    try {
+      const [gutenbergPassages, generatedRaw] = await Promise.all([
+        fetchGutenbergPassages(device.name, ageGroup),
+        claudeChat({
+          system: 'Return ONLY valid JSON, no markdown. Structure: {"generated":[{"text":"...","explanation":"..."}]}',
+          messages: [{ role: 'user', content: `Give 3 original creative examples of "${device.name}" (${device.def}) for students aged ${ageGroup}. Each: vivid, memorable 1–2 sentences.` }],
+        })
+      ])
+      const gen = JSON.parse(generatedRaw.replace(/```json|```/g, '').trim())
+      setCache(prev => ({ ...prev, [device.name]: { classic: gutenbergPassages, generated: gen.generated || [] } }))
+    } catch(e) { setErrorMsg(e.message || 'Failed to load examples.') }
+    setLoading(false)
+  }
+
+  return (
+    <div className="fade-up">
+      {/* Header */}
+      <div className="p-5 mb-4 flex items-center justify-between" style={S.card}>
+        <div className="flex items-center gap-3">
+          <span className="text-3xl">{device.emoji}</span>
+          <div>
+            <h3 className="font-serif text-2xl" style={S.page}>{device.name}</h3>
+            <p className="font-sans text-xs mt-0.5" style={S.label}>{device.def}</p>
+          </div>
+        </div>
+      </div>
+
+      {loading && (
+        <div className="p-8 flex flex-col items-center gap-2" style={S.border}>
+          <p className="font-sans text-xs tracking-widest uppercase" style={S.hint}>Fetching from Project Gutenberg...</p>
+          <p className="font-sans text-xs" style={{ color: 'rgba(138,122,104,0.5)' }}>Pulling real passages from classic literature</p>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="p-3 font-sans text-sm mb-4" style={{ border: '1px solid rgba(220,38,38,0.3)', color: '#f87171' }}>
+          {errorMsg}
+        </div>
+      )}
+
+      {data && (
+        <>
+          <div className="p-5 mb-4" style={S.border}>
+            <p className="font-sans text-xs tracking-widest uppercase mb-3" style={S.label}>Generated Examples</p>
+            <div className="space-y-3">
+              {data.generated.map((g, i) => (
+                <div key={i} className="pl-4" style={{ borderLeft: '2px solid #1F3A5F' }}>
+                  <p className="font-serif text-sm italic mb-1" style={S.page}>"{g.text}"</p>
+                  <p className="font-sans text-xs" style={S.body}>{g.explanation}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="p-5" style={S.border}>
+            <div className="flex items-center gap-2 mb-3">
+              <p className="font-sans text-xs tracking-widest uppercase" style={S.label}>From Classic Literature</p>
+              <span className="font-sans text-xs px-2 py-0.5"
+                style={{ background: 'rgba(212,175,55,0.1)', color: '#D4AF37', border: '1px solid rgba(212,175,55,0.3)' }}>
+                Project Gutenberg
+              </span>
+            </div>
+            <div className="space-y-4">
+              {data.classic.map((c, i) => (
+                <ClassicCard key={i} c={c} deviceName={device.name} />
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Custom device panel ─────────────────────────────────────────────────────────
+function CustomDevicePanel({ ageGroup }) {
+  const [input, setInput]     = useState('')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult]   = useState(null)
+  const [error, setError]     = useState('')
+
+  async function handleLookup() {
+    if (!input.trim()) return
+    setLoading(true); setResult(null); setError('')
+    try {
+      const raw = await claudeChat({
+        system: 'Return ONLY valid JSON, no markdown. Structure: {"name":"...","definition":"...","examples":[{"text":"...","explanation":"..."}],"tip":"..."}',
+        messages: [{
+          role: 'user',
+          content: `The student has asked about the literary device or technique: "${input.trim()}". For students aged ${ageGroup}, provide:
+- name: the proper name of the device
+- definition: a clear one-sentence definition
+- examples: 4 vivid original examples (text + explanation each)
+- tip: one practical tip for using it in their own writing`
+        }]
+      })
+      const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim())
+      setResult(parsed)
+    } catch(e) { setError(e.message || 'Could not look up that device.') }
+    setLoading(false)
+  }
+
+  return (
+    <div className="fade-up">
+      <div className="p-5 mb-4" style={S.card}>
+        <p className="font-sans text-xs tracking-widest uppercase mb-1" style={S.label}>Your Own Device</p>
+        <p className="font-sans text-xs" style={S.body}>Type any literary term — familiar or obscure — and Claude will explain and illustrate it.</p>
+      </div>
+      <div className="flex gap-2 mb-4">
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleLookup()}
+          placeholder="e.g. chiasmus, zeugma, polysyndeton..."
+          className="flex-1 font-sans text-sm p-3 focus:outline-none"
+          style={S.input}
+        />
+        <button
+          onClick={handleLookup}
+          disabled={loading || !input.trim()}
+          className="font-sans text-xs tracking-widest uppercase px-5 py-3 font-bold transition-colors disabled:opacity-40"
+          style={{ background: '#D4AF37', color: '#0B1628' }}
+        >
+          {loading ? '...' : 'Look up →'}
+        </button>
+      </div>
+
+      {error && <div className="p-3 font-sans text-sm mb-4" style={{ border: '1px solid rgba(220,38,38,0.3)', color: '#f87171' }}>{error}</div>}
+
+      {result && (
+        <div className="fade-up">
+          <div className="p-5 mb-4" style={{ background: 'linear-gradient(135deg,#1A3358,#112040)', border: '1px solid #2A4A6B' }}>
+            <h3 className="font-serif text-xl mb-1" style={S.page}>{result.name}</h3>
+            <p className="font-sans text-xs" style={S.label}>{result.definition}</p>
+          </div>
+          <div className="p-5 mb-4" style={S.border}>
+            <p className="font-sans text-xs tracking-widest uppercase mb-3" style={S.label}>Examples</p>
+            <div className="space-y-3">
+              {(result.examples || []).map((ex, i) => (
+                <div key={i} className="pl-4" style={{ borderLeft: '2px solid #1F3A5F' }}>
+                  <p className="font-serif text-sm italic mb-1" style={S.page}>"{ex.text}"</p>
+                  <p className="font-sans text-xs" style={S.body}>{ex.explanation}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          {result.tip && (
+            <div className="p-4 flex gap-3" style={{ background: 'rgba(212,175,55,0.06)', border: '1px solid rgba(212,175,55,0.25)' }}>
+              <span style={S.label}>✦</span>
+              <p className="font-sans text-xs leading-relaxed" style={S.body}><span style={S.label}>Writing tip: </span>{result.tip}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main page ───────────────────────────────────────────────────────────────────
 export default function LiteraryDevices() {
   const { ageGroup } = useApp()
-  const [selected, setSelected]     = useState(null)
-  const [cache, setCache]           = useState({})   // keyed by device name
-  const [loading, setLoading]       = useState(false)
-  const [errorMsg, setErrorMsg]     = useState('')
-  const [search, setSearch]         = useState('')
+  const [search, setSearch]     = useState('')
+  const [selected, setSelected] = useState(null)   // { name, def, emoji } or 'custom'
+  const [cache, setCache]       = useState({})
+  const panelRef = useRef(null)
 
   const filtered = DEVICES.filter(d =>
     d.name.toLowerCase().includes(search.toLowerCase()) ||
     d.def.toLowerCase().includes(search.toLowerCase())
   )
 
-  async function selectDevice(device) {
+  function handleExplore(device) {
     setSelected(device)
-    setErrorMsg('')
-    if (cache[device.name]) return  // already loaded
-
-    setLoading(true)
-    try {
-      // Run both fetches in parallel
-      const [gutenbergPassages, generatedRaw] = await Promise.all([
-        fetchGutenbergPassages(device.name, ageGroup),
-        claudeChat({
-          system: 'Return ONLY valid JSON, no markdown. Structure: {"generated":[{"text":"...","explanation":"..."}]}',
-          messages: [{ role: 'user', content: `Give 3 original creative examples of "${device.name}" (${device.def}) for students aged ${ageGroup}. Each should be a vivid, memorable 1–2 sentence example.` }],
-        })
-      ])
-
-      const generatedParsed = JSON.parse(generatedRaw.replace(/```json|```/g, '').trim())
-      setCache(prev => ({
-        ...prev,
-        [device.name]: {
-          classic: gutenbergPassages,
-          generated: generatedParsed.generated || []
-        }
-      }))
-    } catch(e) {
-      setErrorMsg(e.message || 'Failed to load examples.')
-    }
-    setLoading(false)
+    setTimeout(() => panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   }
-
-  const data = selected ? cache[selected.name] : null
 
   return (
     <div className="fade-up">
+      {/* Page header */}
       <div className="mb-8">
         <p className="font-sans text-xs tracking-widest uppercase mb-2" style={S.label}>Module 03</p>
         <h2 className="font-serif text-3xl mb-2" style={S.page}>Literary Devices</h2>
         <div className="gold-bar w-16 mb-3" />
         <p className="font-sans text-sm" style={S.body}>
-          Explore every major literary device with AI-generated examples and real passages pulled from
-          <span style={S.label}> Project Gutenberg</span> — the world's largest library of free public domain literature.
+          Flip a card to see the definition, then explore real examples from{' '}
+          <span style={S.label}>Project Gutenberg</span>. Or look up any device you like.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* Device list */}
-        <div className="lg:col-span-1">
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search devices..."
-            className="w-full font-sans text-xs p-3 mb-3 focus:outline-none" style={S.input} />
-          <div className="space-y-1 max-h-[600px] overflow-y-auto pr-1">
-            {filtered.map(d => (
-              <button key={d.name} onClick={() => selectDevice(d)}
-                className="w-full text-left px-4 py-3 transition-all flex items-center gap-3"
-                style={selected?.name === d.name
-                  ? { border: '1px solid #D4AF37', background: 'rgba(212,175,55,0.05)', color: '#D4AF37' }
-                  : { border: '1px solid #1A3358', color: '#F5ECD7' }}>
-                <span className="text-lg">{d.emoji}</span>
-                <div>
-                  <div className="font-serif text-sm">{d.name}</div>
-                  <div className="font-sans text-xs leading-tight mt-0.5" style={S.body}>{d.def.substring(0, 42)}...</div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Examples panel */}
-        <div className="lg:col-span-2">
-          {!selected && (
-            <div className="h-64 flex items-center justify-center" style={{ border: '1px dashed #1A3358' }}>
-              <p className="font-sans text-xs tracking-widest uppercase" style={S.hint}>Select a device to explore examples</p>
-            </div>
-          )}
-
-          {selected && (
-            <div className="fade-up">
-              <div className="p-5 mb-4" style={S.card}>
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl">{selected.emoji}</span>
-                  <div>
-                    <h3 className="font-serif text-2xl" style={S.page}>{selected.name}</h3>
-                    <p className="font-sans text-xs" style={S.label}>{selected.def}</p>
-                  </div>
-                </div>
-              </div>
-
-              {loading && (
-                <div className="p-8 flex flex-col items-center gap-3" style={S.border}>
-                  <p className="font-sans text-xs tracking-widest uppercase" style={S.hint}>Fetching from Project Gutenberg...</p>
-                  <p className="font-sans text-xs" style={{ color: 'rgba(138,122,104,0.6)' }}>Pulling real passages from classic literature</p>
-                </div>
-              )}
-
-              {errorMsg && (
-                <div className="p-3 font-sans text-sm mb-4" style={{ border: '1px solid rgba(220,38,38,0.3)', color: '#f87171' }}>
-                  {errorMsg}
-                </div>
-              )}
-
-              {data && (
-                <>
-                  {/* Generated examples */}
-                  <div className="p-5 mb-4" style={S.border}>
-                    <p className="font-sans text-xs tracking-widest uppercase mb-3" style={S.label}>Generated Examples</p>
-                    <div className="space-y-3">
-                      {data.generated.map((g, i) => (
-                        <div key={i} className="pl-4" style={{ borderLeft: '2px solid #1F3A5F' }}>
-                          <p className="font-serif text-sm italic mb-1" style={S.page}>"{g.text}"</p>
-                          <p className="font-sans text-xs" style={S.body}>{g.explanation}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Real Gutenberg passages */}
-                  <div className="p-5" style={S.border}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <p className="font-sans text-xs tracking-widest uppercase" style={S.label}>From Classic Literature</p>
-                      <span className="font-sans text-xs px-2 py-0.5" style={{ background: 'rgba(212,175,55,0.1)', color: '#D4AF37', border: '1px solid rgba(212,175,55,0.3)' }}>Project Gutenberg</span>
-                    </div>
-                    <div className="space-y-4">
-                      {data.classic.map((c, i) => (
-                        <ClassicCard key={i} c={c} deviceName={selected.name} />
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
+      {/* Search + custom device toggle */}
+      <div className="flex gap-2 mb-6">
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search devices..."
+          className="flex-1 font-sans text-xs p-3 focus:outline-none"
+          style={S.input}
+        />
+        <button
+          onClick={() => setSelected('custom')}
+          className="font-sans text-xs tracking-widest uppercase px-4 py-3 transition-all"
+          style={selected === 'custom'
+            ? { background: 'rgba(212,175,55,0.15)', color: '#D4AF37', border: '1px solid rgba(212,175,55,0.4)' }
+            : { border: '1px solid #1A3358', color: '#C8B99A' }
+          }
+        >
+          ✦ Your own device
+        </button>
       </div>
+
+      {/* Flash card grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 mb-10">
+        {filtered.map(d => (
+          <FlashCard
+            key={d.name}
+            device={d}
+            isSelected={selected?.name === d.name}
+            onExplore={handleExplore}
+          />
+        ))}
+      </div>
+
+      {/* Examples / custom panel */}
+      {selected && (
+        <div ref={panelRef} className="pt-2">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="gold-bar flex-1" />
+            <span className="font-sans text-xs tracking-widest uppercase" style={S.hint}>
+              {selected === 'custom' ? 'Custom lookup' : `Examples — ${selected.name}`}
+            </span>
+            <div className="gold-bar flex-1" />
+          </div>
+
+          {selected === 'custom'
+            ? <CustomDevicePanel ageGroup={ageGroup} />
+            : <ExamplesPanel device={selected} ageGroup={ageGroup} cache={cache} setCache={setCache} />
+          }
+        </div>
+      )}
     </div>
   )
 }
