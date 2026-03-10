@@ -1,65 +1,226 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import { claudeChat } from '../lib/claude'
 
-const STORY_TYPES = ['Adventure','Fantasy','Mystery','Science Fiction','Historical Fiction','Fable','Horror','Romance','Comedy']
-const SETTINGS   = ['A magical forest','A futuristic city','An ancient castle','Underwater kingdom','The moon','A small village','A desert island']
-const THEMES     = ['Friendship','Courage','Betrayal','Discovery','Redemption','Family','Identity','Justice']
+// ── Data ───────────────────────────────────────────────────────────────────────
+const FICTION_TYPES     = ['Adventure','Fantasy','Mystery','Science Fiction','Historical Fiction','Fable','Horror','Romance','Comedy']
+const NONFICTION_TOPICS = ['Geography','Climate Change','Science','History','Biography','Nature','Technology','Space','Animals','Culture']
+const SETTINGS          = ['A magical forest','A futuristic city','An ancient castle','Underwater kingdom','The moon','A small village','A desert island','A busy school']
+const THEMES            = ['Friendship','Courage','Betrayal','Discovery','Redemption','Family','Identity','Justice']
 
 const S = {
-  page:  {color:'#F5ECD7'},
-  label: {color:'#D4AF37'},
-  body:  {color:'#C8B99A'},
-  hint:  {color:'#8A7A68'},
-  border:{border:'1px solid #1A3358'},
-  input: {background:'rgba(17,32,64,0.6)',border:'1px solid #1A3358',color:'#F5ECD7'},
+  page:  { color: '#F5ECD7' },
+  label: { color: '#D4AF37' },
+  body:  { color: '#C8B99A' },
+  hint:  { color: '#8A7A68' },
+  border:{ border: '1px solid #1A3358' },
+  input: { background: 'rgba(17,32,64,0.6)', border: '1px solid #1A3358', color: '#F5ECD7' },
+}
+const chipActive   = { borderColor: '#D4AF37', color: '#D4AF37', background: 'rgba(212,175,55,0.1)' }
+const chipInactive = { borderColor: '#1A3358', color: '#C8B99A' }
+
+// ── Options sidebar (shared between Generate & Brainstorm) ─────────────────────
+function OptionsPanel({ mode, genre, setGenre, writingMode, setWritingMode, characters, setCharacters,
+  setting, setSetting, theme, setTheme, keywords, setKeywords, topic, setTopic }) {
+
+  return (
+    <div className="space-y-4 font-sans text-xs">
+
+      {/* Fiction / Non-fiction toggle */}
+      <div>
+        <label className="tracking-widest uppercase block mb-2" style={S.hint}>Writing Mode</label>
+        <div className="flex" style={S.border}>
+          {[['fiction','📖 Fiction'],['nonfiction','📰 Non-Fiction']].map(([val,lbl]) => (
+            <button key={val} onClick={() => { setWritingMode(val); setGenre(''); setTopic('') }}
+              className="flex-1 py-2 tracking-widest uppercase transition-all text-xs"
+              style={writingMode === val ? { background:'#1F3A5F', color:'#D4AF37' } : { color:'#C8B99A' }}>
+              {lbl}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Fiction: genre + setting + theme */}
+      {writingMode === 'fiction' && (
+        <>
+          <div>
+            <label className="tracking-widest uppercase block mb-2" style={S.hint}>Genre</label>
+            <div className="flex flex-wrap gap-1.5">
+              {FICTION_TYPES.map(t => (
+                <button key={t} onClick={() => setGenre(g => g === t ? '' : t)}
+                  className="px-2.5 py-1 border transition-all text-xs"
+                  style={genre === t ? chipActive : chipInactive}>{t}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="tracking-widest uppercase block mb-2" style={S.hint}>Setting</label>
+            <div className="flex flex-wrap gap-1.5">
+              {SETTINGS.map(s => (
+                <button key={s} onClick={() => setSetting(v => v === s ? '' : s)}
+                  className="px-2.5 py-1 border transition-all text-xs"
+                  style={setting === s ? chipActive : chipInactive}>{s}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="tracking-widest uppercase block mb-2" style={S.hint}>Theme</label>
+            <div className="flex flex-wrap gap-1.5">
+              {THEMES.map(t => (
+                <button key={t} onClick={() => setTheme(v => v === t ? '' : t)}
+                  className="px-2.5 py-1 border transition-all text-xs"
+                  style={theme === t ? chipActive : chipInactive}>{t}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="tracking-widest uppercase block mb-1.5" style={S.hint}>Characters</label>
+            <input value={characters} onChange={e => setCharacters(e.target.value)}
+              placeholder="e.g. a brave girl, a talking fox..."
+              className="w-full p-2.5 focus:outline-none text-xs"
+              style={S.input} />
+          </div>
+        </>
+      )}
+
+      {/* Non-fiction: topic chips */}
+      {writingMode === 'nonfiction' && (
+        <div>
+          <label className="tracking-widest uppercase block mb-2" style={S.hint}>Topic</label>
+          <div className="flex flex-wrap gap-1.5">
+            {NONFICTION_TOPICS.map(t => (
+              <button key={t} onClick={() => setTopic(v => v === t ? '' : t)}
+                className="px-2.5 py-1 border transition-all text-xs"
+                style={topic === t ? chipActive : chipInactive}>{t}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Keywords always visible */}
+      <div>
+        <label className="tracking-widest uppercase block mb-1.5" style={S.hint}>Keywords (optional)</label>
+        <input value={keywords} onChange={e => setKeywords(e.target.value)}
+          placeholder="e.g. moonlight, ancient map..."
+          className="w-full p-2.5 focus:outline-none text-xs"
+          style={S.input} />
+      </div>
+    </div>
+  )
 }
 
+// ── Main page ──────────────────────────────────────────────────────────────────
 export default function GenerateBrainstorm() {
   const { ageGroup } = useApp()
-  const [mode,setMode]                     = useState('generate')
-  const [storyType,setStoryType]           = useState('')
-  const [characters,setCharacters]         = useState('')
-  const [setting,setSetting]               = useState('')
-  const [theme,setTheme]                   = useState('')
-  const [keywords,setKeywords]             = useState('')
-  const [loading,setLoading]               = useState(false)
-  const [story,setStory]                   = useState('')
-  const [errorMsg,setErrorMsg]             = useState('')
-  const [brainstormHistory,setBrainstormHistory] = useState([])
-  const [brainstormInput,setBrainstormInput]     = useState('')
-  const [brainstormLoading,setBrainstormLoading] = useState(false)
-  const [currentDraft,setCurrentDraft]     = useState('')
-  const [feedbackLoading,setFeedbackLoading]= useState(false)
-  const [feedback,setFeedback]             = useState('')
 
-  async function handleGenerate() {
-    setLoading(true); setStory(''); setErrorMsg('')
+  // Tab
+  const [mode, setMode] = useState('generate')
+
+  // Shared options
+  const [writingMode, setWritingMode] = useState('fiction')
+  const [genre,       setGenre]       = useState('')
+  const [topic,       setTopic]       = useState('')
+  const [characters,  setCharacters]  = useState('')
+  const [setting,     setSetting]     = useState('')
+  const [theme,       setTheme]       = useState('')
+  const [keywords,    setKeywords]    = useState('')
+
+  // Brainstorm sidebar collapsed state
+  const [optionsOpen, setOptionsOpen] = useState(false)
+
+  // Generate
+  const [loading,   setLoading]   = useState(false)
+  const [story,     setStory]     = useState('')
+  const [errorMsg,  setErrorMsg]  = useState('')
+
+  // Brainstorm
+  const [brainstormHistory,    setBrainstormHistory]    = useState([])
+  const [brainstormInput,      setBrainstormInput]      = useState('')
+  const [brainstormLoading,    setBrainstormLoading]    = useState(false)
+  const chatEndRef = useRef(null)
+
+  // Feedback
+  const [currentDraft,    setCurrentDraft]    = useState('')
+  const [feedbackLoading, setFeedbackLoading] = useState(false)
+  const [feedback,        setFeedback]        = useState('')
+
+  // Auto-scroll brainstorm
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [brainstormHistory, brainstormLoading])
+
+  // Kick off brainstorm with a welcome message when switching to brainstorm tab
+  useEffect(() => {
+    if (mode === 'brainstorm' && brainstormHistory.length === 0) {
+      sendWelcome()
+    }
+  }, [mode]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function buildContext() {
+    if (writingMode === 'nonfiction') {
+      return `Non-fiction piece${topic ? ` about ${topic}` : ''}${keywords ? `, keywords: ${keywords}` : ''}`
+    }
+    return [
+      genre       && `Genre: ${genre}`,
+      characters  && `Characters: ${characters}`,
+      setting     && `Setting: ${setting}`,
+      theme       && `Theme: ${theme}`,
+      keywords    && `Keywords: ${keywords}`,
+    ].filter(Boolean).join(' | ') || 'open topic'
+  }
+
+  async function sendWelcome() {
+    setBrainstormLoading(true)
     try {
-      const result = await claudeChat({ messages:[{ role:'user', content:
-        `Write a complete creative story for a student aged ${ageGroup}.
-Type: ${storyType||'any'} | Characters: ${characters||'your choice'} | Setting: ${setting||'your choice'} | Theme: ${theme||'your choice'} | Keywords: ${keywords||'none'}
-Engaging, age-appropriate, clear beginning/middle/end, rich literary devices. 400-600 words.`
-      }]})
-      setStory(result)
-    } catch(e) { setErrorMsg(e.message||'Failed to generate. Please try again.') }
-    setLoading(false)
+      const ctx = buildContext()
+      const reply = await claudeChat({
+        system: `You are a warm, encouraging creative writing coach for students aged ${ageGroup}. Guide them interactively with one focused question at a time. After 4–5 exchanges, offer to write a short opening paragraph based on their ideas. Keep responses concise (2–4 sentences) and enthusiastic.`,
+        messages: [{
+          role: 'user',
+          content: `I want to write something. Context: ${ctx}. Please start by asking me one question to help develop my idea!`
+        }]
+      })
+      setBrainstormHistory([
+        { role: 'user',      content: `I want to write something. Context: ${ctx}.` },
+        { role: 'assistant', content: reply }
+      ])
+    } catch(e) {
+      setBrainstormHistory([{ role: 'assistant', content: 'Hi! I\'m your writing coach. What would you like to write about today?' }])
+    }
+    setBrainstormLoading(false)
   }
 
   async function handleBrainstorm(userMsg) {
-    if (!userMsg.trim()) return
-    const newHistory = [...brainstormHistory,{role:'user',content:userMsg}]
-    setBrainstormHistory(newHistory); setBrainstormInput(''); setBrainstormLoading(true)
+    if (!userMsg.trim() || brainstormLoading) return
+    const ctx = buildContext()
+    const newHistory = [...brainstormHistory, { role: 'user', content: userMsg }]
+    setBrainstormHistory(newHistory)
+    setBrainstormInput('')
+    setBrainstormLoading(true)
     try {
       const reply = await claudeChat({
-        system:`You are a warm, encouraging creative writing coach for students aged ${ageGroup}. Guide them interactively. Ask one focused question at a time. After 4-5 exchanges, offer to write a short opening paragraph based on their ideas. Keep responses concise and enthusiastic.`,
-        messages:newHistory,
+        system: `You are a warm, encouraging creative writing coach for students aged ${ageGroup}. Writing context: ${ctx}. Guide interactively with one focused question at a time. After 4–5 exchanges offer to write a short opening paragraph. Keep responses concise (2–4 sentences) and enthusiastic.`,
+        messages: newHistory,
       })
-      setBrainstormHistory(prev=>[...prev,{role:'assistant',content:reply}])
+      setBrainstormHistory(prev => [...prev, { role: 'assistant', content: reply }])
     } catch(e) {
-      setBrainstormHistory(prev=>[...prev,{role:'assistant',content:e.message||'Something went wrong.'}])
+      setBrainstormHistory(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong. Try again!' }])
     }
     setBrainstormLoading(false)
+  }
+
+  async function handleGenerate() {
+    setLoading(true); setStory(''); setErrorMsg('')
+    const ctx = buildContext()
+    try {
+      const result = await claudeChat({ messages: [{ role: 'user', content:
+        writingMode === 'nonfiction'
+          ? `Write an engaging non-fiction piece for a student aged ${ageGroup}. ${ctx}. Make it informative, vivid, and age-appropriate. 400–600 words.`
+          : `Write a complete creative story for a student aged ${ageGroup}. ${ctx}. Engaging, age-appropriate, clear beginning/middle/end, rich literary devices. 400–600 words.`
+      }]})
+      setStory(result)
+    } catch(e) { setErrorMsg(e.message || 'Failed to generate. Please try again.') }
+    setLoading(false)
   }
 
   async function handleFeedback() {
@@ -67,162 +228,196 @@ Engaging, age-appropriate, clear beginning/middle/end, rich literary devices. 40
     setFeedbackLoading(true); setFeedback('')
     try {
       const result = await claudeChat({
-        system:`You are an encouraging creative writing teacher for students aged ${ageGroup}. Give warm, specific, actionable feedback. Highlight strengths first, then 2-3 concrete improvements. Offer a rewritten version of their weakest paragraph.`,
-        messages:[{role:'user',content:`Please give feedback and suggest improvements:\n\n${currentDraft}`}],
+        system: `You are an encouraging creative writing teacher for students aged ${ageGroup}. Give warm, specific, actionable feedback. Highlight strengths first, then 2–3 concrete improvements. Offer a rewritten version of their weakest paragraph.`,
+        messages: [{ role: 'user', content: `Please give feedback and suggest improvements:\n\n${currentDraft}` }],
       })
       setFeedback(result)
-    } catch(e) { setFeedback(e.message||'Failed to get feedback.') }
+    } catch(e) { setFeedback(e.message || 'Failed to get feedback.') }
     setFeedbackLoading(false)
   }
 
-  function startBrainstorm() {
-    setBrainstormHistory([])
-    handleBrainstorm(`I want to write a ${storyType||'story'} about ${characters||'some characters'} in ${setting||'an interesting setting'}. Theme: ${theme||'undecided'}. Help me brainstorm!`)
-  }
-
-  const btnActive   = {background:'#1F3A5F',color:'#D4AF37'}
-  const btnInactive = {color:'#C8B99A'}
-  const chipActive  = {borderColor:'#D4AF37',color:'#D4AF37',background:'rgba(212,175,55,0.1)'}
-  const chipInactive= {borderColor:'#1A3358',color:'#C8B99A'}
+  const btnActive   = { background: '#1F3A5F', color: '#D4AF37' }
+  const btnInactive = { color: '#C8B99A' }
 
   return (
-    <div className="fade-up max-w-4xl">
+    <div className="fade-up">
+      {/* Page header */}
       <div className="mb-8">
         <p className="font-sans text-xs tracking-widest uppercase mb-2" style={S.label}>Module 02</p>
         <h2 className="font-serif text-3xl mb-2" style={S.page}>Generate & Brainstorm</h2>
         <div className="gold-bar w-16 mb-3" />
-        <p className="font-sans text-sm" style={S.body}>Build stories with AI. Generate a complete story instantly, or brainstorm interactively with your writing coach.</p>
+        <p className="font-sans text-sm" style={S.body}>Build stories and essays with AI — generate instantly, or brainstorm interactively with your writing coach.</p>
       </div>
 
       {/* Mode tabs */}
       <div className="flex mb-8 w-fit" style={S.border}>
-        {[['generate','⚡ Generate Story'],['brainstorm','💬 Brainstorm'],['feedback','🔍 Get Feedback']].map(([val,label])=>(
-          <button key={val} onClick={()=>setMode(val)}
+        {[['generate','⚡ Generate'],['brainstorm','💬 Brainstorm'],['feedback','🔍 Feedback']].map(([val,lbl]) => (
+          <button key={val} onClick={() => setMode(val)}
             className="font-sans text-xs px-5 py-2.5 tracking-widest uppercase transition-all"
-            style={mode===val ? btnActive : btnInactive}>{label}</button>
+            style={mode === val ? btnActive : btnInactive}>{lbl}</button>
         ))}
       </div>
 
-      {/* Options */}
-      {(mode==='generate'||mode==='brainstorm') && (
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div>
-            <label className="font-sans text-xs tracking-widest uppercase block mb-2" style={S.hint}>Story Type</label>
-            <div className="flex flex-wrap gap-2">
-              {STORY_TYPES.map(t=>(
-                <button key={t} onClick={()=>setStoryType(t)}
-                  className="font-sans text-xs px-3 py-1.5 border transition-all"
-                  style={storyType===t ? chipActive : chipInactive}>{t}</button>
-              ))}
-            </div>
+      {/* ── GENERATE ── two-column: options left, output right */}
+      {mode === 'generate' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Left: options */}
+          <div className="p-5" style={S.border}>
+            <p className="font-sans text-xs tracking-widest uppercase mb-4" style={S.label}>Story Options</p>
+            <OptionsPanel mode="generate"
+              writingMode={writingMode} setWritingMode={setWritingMode}
+              genre={genre} setGenre={setGenre}
+              topic={topic} setTopic={setTopic}
+              characters={characters} setCharacters={setCharacters}
+              setting={setting} setSetting={setSetting}
+              theme={theme} setTheme={setTheme}
+              keywords={keywords} setKeywords={setKeywords}
+            />
+            <button onClick={handleGenerate} disabled={loading}
+              className="mt-6 w-full font-sans text-xs tracking-widest uppercase py-3 font-bold transition-colors disabled:opacity-40"
+              style={{ background: '#D4AF37', color: '#0B1628' }}>
+              {loading ? 'Writing...' : writingMode === 'nonfiction' ? 'Generate Essay →' : 'Generate Story →'}
+            </button>
           </div>
-          <div className="space-y-3">
-            {[['Characters','e.g. a brave girl, a talking fox...',characters,setCharacters],
-              ['Keywords (optional)','e.g. moonlight, ancient map...',keywords,setKeywords]].map(([lbl,ph,val,set])=>(
-              <div key={lbl}>
-                <label className="font-sans text-xs tracking-widest uppercase block mb-1" style={S.hint}>{lbl}</label>
-                <input value={val} onChange={e=>set(e.target.value)} placeholder={ph}
-                  className="w-full font-sans text-xs p-2.5 focus:outline-none"
-                  style={S.input} />
+
+          {/* Right: output */}
+          <div>
+            {errorMsg && (
+              <div className="p-3 font-sans text-sm mb-4" style={{ border: '1px solid rgba(220,38,38,0.3)', color: '#f87171' }}>{errorMsg}</div>
+            )}
+            {loading && (
+              <div className="p-8 flex items-center justify-center" style={S.border}>
+                <p className="font-sans text-xs tracking-widest uppercase" style={S.hint}>Writing your {writingMode === 'nonfiction' ? 'essay' : 'story'}...</p>
               </div>
-            ))}
-            <div>
-              <label className="font-sans text-xs tracking-widest uppercase block mb-1" style={S.hint}>Setting</label>
-              <div className="flex flex-wrap gap-1.5">
-                {SETTINGS.map(s=>(
-                  <button key={s} onClick={()=>setSetting(s)}
-                    className="font-sans text-xs px-2.5 py-1 border transition-all"
-                    style={setting===s ? chipActive : chipInactive}>{s}</button>
-                ))}
+            )}
+            {story && !loading && (
+              <div className="p-6" style={S.border}>
+                <p className="font-sans text-xs tracking-widest uppercase mb-4" style={S.label}>
+                  {writingMode === 'nonfiction' ? 'Generated Essay' : 'Generated Story'}
+                </p>
+                <div className="font-serif text-sm leading-relaxed whitespace-pre-wrap" style={S.page}>{story}</div>
+                <button onClick={() => { setCurrentDraft(story); setMode('feedback') }}
+                  className="mt-4 font-sans text-xs tracking-widest transition-colors" style={{ color: '#7A9CC0' }}>
+                  Get Feedback on this →
+                </button>
               </div>
-            </div>
-            <div>
-              <label className="font-sans text-xs tracking-widest uppercase block mb-1" style={S.hint}>Theme</label>
-              <div className="flex flex-wrap gap-1.5">
-                {THEMES.map(t=>(
-                  <button key={t} onClick={()=>setTheme(t)}
-                    className="font-sans text-xs px-2.5 py-1 border transition-all"
-                    style={theme===t ? chipActive : chipInactive}>{t}</button>
-                ))}
+            )}
+            {!story && !loading && !errorMsg && (
+              <div className="p-8 flex flex-col items-center justify-center gap-2 h-full" style={{ ...S.border, minHeight: '200px' }}>
+                <span className="text-3xl opacity-30">✍️</span>
+                <p className="font-sans text-xs" style={S.hint}>Choose your options and generate</p>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Generate */}
-      {mode==='generate' && (
-        <>
-          <button onClick={handleGenerate} disabled={loading}
-            className="font-sans text-xs tracking-widest uppercase px-8 py-3 font-bold transition-colors disabled:opacity-40"
-            style={{background:'#D4AF37',color:'#0B1628'}}>
-            {loading ? 'Writing...' : 'Generate Story →'}
-          </button>
-          {errorMsg && <div className="mt-4 p-3 font-sans text-sm" style={{border:'1px solid rgba(220,38,38,0.3)',color:'#f87171'}}>{errorMsg}</div>}
-          {story && (
-            <div className="mt-8 p-6" style={S.border}>
-              <p className="font-sans text-xs tracking-widest uppercase mb-4" style={S.label}>Generated Story</p>
-              <div className="font-serif text-sm leading-relaxed whitespace-pre-wrap" style={S.page}>{story}</div>
-              <button onClick={()=>{setCurrentDraft(story);setMode('feedback')}}
-                className="mt-4 font-sans text-xs tracking-widest transition-colors" style={{color:'#7A9CC0'}}>
-                Get Feedback on this story →
+      {/* ── BRAINSTORM ── chat-first, options in collapsible sidebar */}
+      {mode === 'brainstorm' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+          {/* Left: chat (2/3 width) */}
+          <div className="md:col-span-2 flex flex-col" style={{ minHeight: '500px' }}>
+            {/* Chat history */}
+            <div className="flex-1 p-4 space-y-4 overflow-y-auto" style={{ ...S.border, maxHeight: '460px' }}>
+              {brainstormHistory.filter(m => m.role !== 'user' || brainstormHistory.indexOf(m) > 0).map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className="max-w-sm p-3 font-sans text-sm leading-relaxed"
+                    style={msg.role === 'user'
+                      ? { background: 'rgba(31,58,95,0.5)', color: '#F5ECD7', border: '1px solid rgba(31,58,95,0.6)' }
+                      : { background: 'rgba(17,32,64,0.7)', color: '#C8B99A', border: '1px solid #1A3358' }}>
+                    {msg.content}
+                  </div>
+                </div>
+              ))}
+              {brainstormLoading && (
+                <div className="flex justify-start">
+                  <div className="p-3 font-sans text-sm italic"
+                    style={{ background: 'rgba(17,32,64,0.7)', color: '#8A7A68', border: '1px solid #1A3358' }}>
+                    Thinking...
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Input bar */}
+            <div className="flex mt-0" style={{ borderTop: 'none', border: '1px solid #1A3358', borderTop: '0' }}>
+              <input value={brainstormInput}
+                onChange={e => setBrainstormInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleBrainstorm(brainstormInput)}
+                placeholder="Type your response..."
+                className="flex-1 bg-transparent font-sans text-sm p-3 focus:outline-none"
+                style={{ color: '#F5ECD7', background: 'rgba(17,32,64,0.4)', borderTop: '1px solid #1A3358' }}
+              />
+              <button onClick={() => handleBrainstorm(brainstormInput)}
+                disabled={brainstormLoading || !brainstormInput.trim()}
+                className="font-sans text-xs px-5 transition-colors disabled:opacity-40"
+                style={{ color: '#D4AF37', borderTop: '1px solid #1A3358', borderLeft: '1px solid #1A3358', background: 'rgba(17,32,64,0.4)' }}>
+                Send →
               </button>
             </div>
-          )}
-        </>
+
+            {/* Reset link */}
+            {brainstormHistory.length > 0 && (
+              <button onClick={() => { setBrainstormHistory([]); setTimeout(() => sendWelcome(), 100) }}
+                className="mt-2 font-sans text-xs self-start transition-colors"
+                style={{ color: '#8A7A68' }}>
+                ↺ Start fresh
+              </button>
+            )}
+          </div>
+
+          {/* Right: collapsible options (1/3 width) */}
+          <div>
+            <button onClick={() => setOptionsOpen(o => !o)}
+              className="w-full font-sans text-xs tracking-widest uppercase py-2.5 px-4 mb-3 flex items-center justify-between transition-all"
+              style={{ ...S.border, color: optionsOpen ? '#D4AF37' : '#C8B99A', background: optionsOpen ? 'rgba(212,175,55,0.06)' : 'transparent' }}>
+              <span>⚙ Writing Options</span>
+              <span style={{ fontSize: '10px' }}>{optionsOpen ? '▲' : '▼'}</span>
+            </button>
+
+            {optionsOpen && (
+              <div className="p-4" style={S.border}>
+                <OptionsPanel mode="brainstorm"
+                  writingMode={writingMode} setWritingMode={setWritingMode}
+                  genre={genre} setGenre={setGenre}
+                  topic={topic} setTopic={setTopic}
+                  characters={characters} setCharacters={setCharacters}
+                  setting={setting} setSetting={setSetting}
+                  theme={theme} setTheme={setTheme}
+                  keywords={keywords} setKeywords={setKeywords}
+                />
+                <button
+                  onClick={() => { setBrainstormHistory([]); setOptionsOpen(false); setTimeout(() => sendWelcome(), 100) }}
+                  className="mt-4 w-full font-sans text-xs tracking-widest uppercase py-2 transition-colors"
+                  style={{ background: 'rgba(212,175,55,0.15)', color: '#D4AF37', border: '1px solid rgba(212,175,55,0.3)' }}>
+                  Restart with these options →
+                </button>
+              </div>
+            )}
+
+            {/* Context badge */}
+            {!optionsOpen && (
+              <div className="p-3 font-sans text-xs" style={{ background: 'rgba(17,32,64,0.4)', border: '1px solid #1A3358' }}>
+                <span className="block mb-1" style={S.hint}>Current context:</span>
+                <span style={S.body}>{buildContext()}</span>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
-      {/* Brainstorm */}
-      {mode==='brainstorm' && (
-        <>
-          {brainstormHistory.length===0 ? (
-            <button onClick={startBrainstorm}
-              className="font-sans text-xs tracking-widest uppercase px-8 py-3 font-bold transition-colors"
-              style={{background:'#D4AF37',color:'#0B1628'}}>Start Brainstorming →</button>
-          ) : (
-            <div style={S.border}>
-              <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
-                {brainstormHistory.map((msg,i)=>(
-                  <div key={i} className={`flex ${msg.role==='user'?'justify-end':'justify-start'}`}>
-                    <div className="max-w-lg p-3 font-sans text-sm leading-relaxed"
-                      style={msg.role==='user'
-                        ? {background:'rgba(31,58,95,0.5)',color:'#F5ECD7',border:'1px solid rgba(31,58,95,0.6)'}
-                        : {background:'rgba(17,32,64,0.7)',color:'#C8B99A',border:'1px solid #1A3358'}}>
-                      {msg.content}
-                    </div>
-                  </div>
-                ))}
-                {brainstormLoading && (
-                  <div className="flex justify-start">
-                    <div className="p-3 font-sans text-sm italic" style={{background:'rgba(17,32,64,0.7)',color:'#8A7A68',border:'1px solid #1A3358'}}>Thinking...</div>
-                  </div>
-                )}
-              </div>
-              <div className="flex" style={{borderTop:'1px solid #1A3358'}}>
-                <input value={brainstormInput} onChange={e=>setBrainstormInput(e.target.value)}
-                  onKeyDown={e=>e.key==='Enter'&&handleBrainstorm(brainstormInput)}
-                  placeholder="Type your response..."
-                  className="flex-1 bg-transparent font-sans text-sm p-3 focus:outline-none"
-                  style={{color:'#F5ECD7'}} />
-                <button onClick={()=>handleBrainstorm(brainstormInput)} disabled={brainstormLoading}
-                  className="font-sans text-xs px-4 transition-colors disabled:opacity-40"
-                  style={{color:'#D4AF37',borderLeft:'1px solid #1A3358'}}>Send →</button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Feedback */}
-      {mode==='feedback' && (
-        <div>
-          <textarea value={currentDraft} onChange={e=>setCurrentDraft(e.target.value)}
-            placeholder="Paste or write your story here to get feedback..."
+      {/* ── FEEDBACK ── */}
+      {mode === 'feedback' && (
+        <div className="max-w-2xl">
+          <textarea value={currentDraft} onChange={e => setCurrentDraft(e.target.value)}
+            placeholder="Paste or write your story or essay here to get feedback..."
             className="w-full h-48 font-sans text-sm p-4 resize-none focus:outline-none leading-relaxed mb-4"
             style={S.input} />
-          <button onClick={handleFeedback} disabled={feedbackLoading||!currentDraft.trim()}
+          <button onClick={handleFeedback} disabled={feedbackLoading || !currentDraft.trim()}
             className="font-sans text-xs tracking-widest uppercase px-8 py-3 font-bold transition-colors disabled:opacity-40"
-            style={{background:'#D4AF37',color:'#0B1628'}}>
+            style={{ background: '#D4AF37', color: '#0B1628' }}>
             {feedbackLoading ? 'Reading...' : 'Get Feedback & Rewrite Suggestions →'}
           </button>
           {feedback && (
