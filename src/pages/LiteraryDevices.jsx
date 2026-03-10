@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
+import { claudeChat } from '../lib/claude'
 
 const DEVICES = [
   { name: 'Simile', def: 'A comparison using "like" or "as"', emoji: '🌸' },
@@ -26,7 +27,7 @@ const DEVICES = [
   { name: 'Paradox', def: 'A statement that seems contradictory but contains a truth', emoji: '🌙' },
   { name: 'Extended Metaphor', def: 'A metaphor sustained throughout a passage or work', emoji: '🦚' },
   { name: 'Stream of Consciousness', def: 'Writing that depicts the uninterrupted flow of thoughts', emoji: '🌊' },
-  { name: 'Tone', def: 'The author\'s attitude toward the subject or audience', emoji: '🎵' },
+  { name: 'Tone', def: "The author's attitude toward the subject or audience", emoji: '🎵' },
   { name: 'Mood', def: 'The atmosphere or emotional feeling of a piece', emoji: '🌅' },
   { name: 'Understatement', def: 'Deliberately making something seem less than it is', emoji: '🤫' },
   { name: 'Sarcasm', def: 'A form of irony intended to mock or show contempt', emoji: '😏' },
@@ -39,6 +40,7 @@ export default function LiteraryDevices() {
   const [selected, setSelected] = useState(null)
   const [examples, setExamples] = useState({})
   const [loading, setLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
   const [search, setSearch] = useState('')
 
   const filtered = DEVICES.filter(d =>
@@ -50,26 +52,19 @@ export default function LiteraryDevices() {
     if (examples[device.name]) { setSelected(device); return }
     setSelected(device)
     setLoading(true)
+    setErrorMsg('')
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system: 'Return ONLY valid JSON, no markdown. Use this exact structure: {"generated": [{"text": "example sentence", "explanation": "why this is the device"}], "classic": [{"text": "3-5 line passage", "source": "Author, Title", "link": "gutenberg url or empty string", "explanation": "brief analysis"}]}',
-          messages: [{
-            role: 'user',
-            content: `Give me 3 generated examples and 3 classic literature examples of the literary device "${device.name}" (${device.def}), appropriate for students aged ${ageGroup}.`
-          }]
-        })
+      const raw = await claudeChat({
+        system: 'Return ONLY valid JSON, no markdown. Use this exact structure: {"generated": [{"text": "example sentence", "explanation": "why this is the device"}], "classic": [{"text": "3-5 line passage", "source": "Author, Title", "link": "gutenberg url or empty string", "explanation": "brief analysis"}]}',
+        messages: [{ role: 'user', content: `Give me 3 generated examples and 3 classic literature examples of the literary device "${device.name}" (${device.def}), appropriate for students aged ${ageGroup}.` }],
       })
-      const data = await res.json()
-      const raw = data.content.map(i => i.text || '').join('')
       const clean = raw.replace(/```json|```/g, '').trim()
       const parsed = JSON.parse(clean)
       setExamples(prev => ({ ...prev, [device.name]: parsed }))
-    } catch { setExamples(prev => ({ ...prev, [device.name]: { error: true } })) }
+    } catch (e) {
+      setErrorMsg(e.message || 'Failed to load examples.')
+      setExamples(prev => ({ ...prev, [device.name]: { error: true } }))
+    }
     setLoading(false)
   }
 
@@ -81,41 +76,29 @@ export default function LiteraryDevices() {
         <p className="font-sans text-xs tracking-widest text-gold uppercase mb-2">Module 03</p>
         <h2 className="font-serif text-3xl text-silver mb-2">Literary Devices</h2>
         <div className="gold-bar w-16 mb-3" />
-        <p className="font-sans text-sm text-g600">Explore every major literary device. See AI-generated examples and passages from classic English literature.</p>
+        <p className="font-sans text-sm text-g600">Explore every major literary device with AI-generated examples and passages from classic English literature.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* Device list */}
         <div className="lg:col-span-1">
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search devices..."
-            className="w-full bg-g800/50 border border-g800 text-silver font-sans text-xs p-3 mb-3 focus:outline-none focus:border-gold/50 placeholder-g700"
-          />
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search devices..."
+            className="w-full bg-g800/50 border border-g800 text-silver font-sans text-xs p-3 mb-3 focus:outline-none focus:border-gold/50 placeholder-g700" />
           <div className="space-y-1 max-h-[600px] overflow-y-auto pr-1">
             {filtered.map(d => (
-              <button
-                key={d.name}
-                onClick={() => loadExamples(d)}
+              <button key={d.name} onClick={() => loadExamples(d)}
                 className={`w-full text-left border px-4 py-3 transition-all flex items-center gap-3 ${
-                  selected?.name === d.name
-                    ? 'border-gold bg-gold/5 text-gold'
-                    : 'border-g800 text-silver hover:border-g700'
-                }`}
-              >
+                  selected?.name===d.name ? 'border-gold bg-gold/5 text-gold' : 'border-g800 text-silver hover:border-g700'
+                }`}>
                 <span className="text-lg">{d.emoji}</span>
                 <div>
                   <div className="font-serif text-sm">{d.name}</div>
-                  <div className="font-sans text-xs text-g600 leading-tight mt-0.5">{d.def.substring(0, 40)}...</div>
+                  <div className="font-sans text-xs text-g600 leading-tight mt-0.5">{d.def.substring(0,40)}...</div>
                 </div>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Examples panel */}
         <div className="lg:col-span-2">
           {!selected && (
             <div className="border border-dashed border-g800 h-64 flex items-center justify-center">
@@ -141,13 +124,14 @@ export default function LiteraryDevices() {
                 </div>
               )}
 
+              {errorMsg && <div className="border border-red-900/40 p-3 text-red-400 font-sans text-sm mb-4">{errorMsg}</div>}
+
               {ex && !ex.error && (
                 <>
-                  {/* Generated examples */}
                   <div className="border border-g800 p-5 mb-4">
                     <p className="font-sans text-xs text-gold tracking-widest uppercase mb-3">Generated Examples</p>
                     <div className="space-y-3">
-                      {(ex.generated || []).map((g, i) => (
+                      {(ex.generated||[]).map((g,i) => (
                         <div key={i} className="border-l-2 border-oxford pl-4">
                           <p className="font-serif text-sm text-silver italic mb-1">"{g.text}"</p>
                           <p className="font-sans text-xs text-g600">{g.explanation}</p>
@@ -155,22 +139,15 @@ export default function LiteraryDevices() {
                       ))}
                     </div>
                   </div>
-
-                  {/* Classic literature examples */}
                   <div className="border border-g800 p-5">
                     <p className="font-sans text-xs text-gold tracking-widest uppercase mb-3">From Classic Literature</p>
                     <div className="space-y-4">
-                      {(ex.classic || []).map((c, i) => (
+                      {(ex.classic||[]).map((c,i) => (
                         <div key={i} className="bg-g800/30 border border-g800 p-4">
                           <p className="font-serif text-sm text-silver/80 italic leading-relaxed mb-2">{c.text}</p>
                           <div className="flex items-center justify-between">
                             <span className="font-sans text-xs text-gold/60">— {c.source}</span>
-                            {c.link && (
-                              <a href={c.link} target="_blank" rel="noreferrer"
-                                 className="font-sans text-xs text-g600 hover:text-gold transition-colors">
-                                Read on Gutenberg →
-                              </a>
-                            )}
+                            {c.link && <a href={c.link} target="_blank" rel="noreferrer" className="font-sans text-xs text-g600 hover:text-gold transition-colors">Read on Gutenberg →</a>}
                           </div>
                           <p className="font-sans text-xs text-g700 mt-2">{c.explanation}</p>
                         </div>
@@ -178,10 +155,6 @@ export default function LiteraryDevices() {
                     </div>
                   </div>
                 </>
-              )}
-
-              {ex?.error && (
-                <div className="border border-g800 p-4 text-g600 font-sans text-sm">Failed to load examples. Please try again.</div>
               )}
             </div>
           )}
