@@ -1,97 +1,231 @@
-// Project Gutenberg integration via the Gutendex API (https://gutendex.com)
-// Fetches real public domain text and extracts passages demonstrating literary devices.
+// Project Gutenberg integration via the Gutendex API (gutendex.com)
+// Fetches real public domain text and asks Claude to extract a relevant passage.
 
-// Well-known Gutenberg book IDs for reliable retrieval, keyed by author/title slug.
-// These are pre-seeded so we skip the search step for common classics.
-const KNOWN_BOOKS = {
-  shakespeare:  { id: 100,   title: 'The Complete Works of Shakespeare' },
-  austen_pp:    { id: 1342,  title: 'Pride and Prejudice' },
-  dickens_ttc:  { id: 98,    title: 'A Tale of Two Cities' },
-  dickens_gc:   { id: 1400,  title: 'Great Expectations' },
-  hardy_tess:   { id: 110,   title: 'Tess of the d'Urbervilles' },
-  eliot_mm:     { id: 145,   title: 'Middlemarch' },
-  poe:          { id: 2147,  title: 'The Works of Edgar Allan Poe' },
-  keats:        { id: 23684, title: 'Poems of Keats' },
-  bronte_je:    { id: 1260,  title: 'Jane Eyre' },
-  hardy_rn:     { id: 3273,  title: 'The Return of the Native' },
-  shelley_fr:   { id: 84,    title: 'Frankenstein' },
-  swift_gt:     { id: 829,   title: "Gulliver's Travels" },
-  defoe_rc:     { id: 521,   title: 'Robinson Crusoe' },
-  bunyan:       { id: 131,   title: "The Pilgrim's Progress" },
-  homer_iliad:  { id: 6130,  title: 'The Iliad' },
+import { claudeChat } from './claude'
+
+// Curated map: device name -> array of well-known works that exemplify it.
+// Multiple options so we can try the next if one fails.
+const DEVICE_SOURCES = {
+  Simile: [
+    { title: 'A Red Red Rose', author: 'Robert Burns', search: 'Robert Burns poems' },
+    { title: 'The Iliad', author: 'Homer', search: 'Iliad Homer' },
+    { title: 'Paradise Lost', author: 'John Milton', search: 'Paradise Lost Milton' },
+  ],
+  Metaphor: [
+    { title: 'As You Like It', author: 'Shakespeare', search: 'As You Like It Shakespeare' },
+    { title: 'Hamlet', author: 'Shakespeare', search: 'Hamlet Shakespeare' },
+    { title: 'Leaves of Grass', author: 'Walt Whitman', search: 'Leaves of Grass Whitman' },
+  ],
+  Personification: [
+    { title: 'Ode to the West Wind', author: 'Shelley', search: 'Shelley poems' },
+    { title: 'The Prelude', author: 'Wordsworth', search: 'Prelude Wordsworth' },
+    { title: 'Songs of Innocence', author: 'William Blake', search: 'Songs of Innocence Blake' },
+  ],
+  Alliteration: [
+    { title: 'The Rime of the Ancient Mariner', author: 'Coleridge', search: 'Ancient Mariner Coleridge' },
+    { title: 'Beowulf', author: 'Anonymous', search: 'Beowulf' },
+    { title: 'The Canterbury Tales', author: 'Chaucer', search: 'Canterbury Tales Chaucer' },
+  ],
+  Onomatopoeia: [
+    { title: 'The Bells', author: 'Edgar Allan Poe', search: 'Poe poems' },
+    { title: 'The Charge of the Light Brigade', author: 'Tennyson', search: 'Tennyson poems' },
+    { title: 'The Raven', author: 'Edgar Allan Poe', search: 'Raven Poe' },
+  ],
+  Hyperbole: [
+    { title: 'To His Coy Mistress', author: 'Andrew Marvell', search: 'Marvell poems' },
+    { title: 'A Midsummer Night Dream', author: 'Shakespeare', search: 'Midsummer Night Dream Shakespeare' },
+    { title: 'Don Quixote', author: 'Cervantes', search: 'Don Quixote Cervantes' },
+  ],
+  Idiom: [
+    { title: 'Hamlet', author: 'Shakespeare', search: 'Hamlet Shakespeare' },
+    { title: 'Othello', author: 'Shakespeare', search: 'Othello Shakespeare' },
+    { title: 'The Pickwick Papers', author: 'Dickens', search: 'Pickwick Papers Dickens' },
+  ],
+  Imagery: [
+    { title: 'Ode to Autumn', author: 'John Keats', search: 'Keats poems' },
+    { title: 'The Waste Land', author: 'T.S. Eliot', search: 'Eliot poems' },
+    { title: 'Walden', author: 'Henry David Thoreau', search: 'Walden Thoreau' },
+  ],
+  Irony: [
+    { title: 'Pride and Prejudice', author: 'Jane Austen', search: 'Pride and Prejudice Austen' },
+    { title: 'Julius Caesar', author: 'Shakespeare', search: 'Julius Caesar Shakespeare' },
+    { title: 'Emma', author: 'Jane Austen', search: 'Emma Austen' },
+  ],
+  Symbolism: [
+    { title: 'The Scarlet Letter', author: 'Nathaniel Hawthorne', search: 'Scarlet Letter Hawthorne' },
+    { title: 'Moby Dick', author: 'Herman Melville', search: 'Moby Dick Melville' },
+    { title: 'Heart of Darkness', author: 'Joseph Conrad', search: 'Heart of Darkness Conrad' },
+  ],
+  Foreshadowing: [
+    { title: 'Macbeth', author: 'Shakespeare', search: 'Macbeth Shakespeare' },
+    { title: 'Romeo and Juliet', author: 'Shakespeare', search: 'Romeo and Juliet Shakespeare' },
+    { title: 'Great Expectations', author: 'Charles Dickens', search: 'Great Expectations Dickens' },
+  ],
+  Flashback: [
+    { title: 'Jane Eyre', author: 'Charlotte Bronte', search: 'Jane Eyre Bronte' },
+    { title: 'Wuthering Heights', author: 'Emily Bronte', search: 'Wuthering Heights Bronte' },
+    { title: 'Great Expectations', author: 'Charles Dickens', search: 'Great Expectations Dickens' },
+  ],
+  Dialogue: [
+    { title: 'The Importance of Being Earnest', author: 'Oscar Wilde', search: 'Importance of Being Earnest Wilde' },
+    { title: 'Pride and Prejudice', author: 'Jane Austen', search: 'Pride and Prejudice Austen' },
+    { title: 'A Tale of Two Cities', author: 'Charles Dickens', search: 'Tale of Two Cities Dickens' },
+  ],
+  Oxymoron: [
+    { title: 'Romeo and Juliet', author: 'Shakespeare', search: 'Romeo and Juliet Shakespeare' },
+    { title: 'Hamlet', author: 'Shakespeare', search: 'Hamlet Shakespeare' },
+    { title: 'Paradise Lost', author: 'John Milton', search: 'Paradise Lost Milton' },
+  ],
+  Allusion: [
+    { title: 'The Waste Land', author: 'T.S. Eliot', search: 'Eliot poems' },
+    { title: 'Ulysses', author: 'James Joyce', search: 'Ulysses Joyce' },
+    { title: 'Hamlet', author: 'Shakespeare', search: 'Hamlet Shakespeare' },
+  ],
+  Anaphora: [
+    { title: 'A Tale of Two Cities', author: 'Charles Dickens', search: 'Tale of Two Cities Dickens' },
+    { title: 'Julius Caesar', author: 'Shakespeare', search: 'Julius Caesar Shakespeare' },
+    { title: 'King James Bible', author: 'Various', search: 'King James Bible' },
+  ],
+  Juxtaposition: [
+    { title: 'A Tale of Two Cities', author: 'Charles Dickens', search: 'Tale of Two Cities Dickens' },
+    { title: 'Romeo and Juliet', author: 'Shakespeare', search: 'Romeo and Juliet Shakespeare' },
+    { title: 'Oliver Twist', author: 'Charles Dickens', search: 'Oliver Twist Dickens' },
+  ],
+  Assonance: [
+    { title: 'The Bells', author: 'Edgar Allan Poe', search: 'Poe poems' },
+    { title: 'Ode to a Nightingale', author: 'John Keats', search: 'Keats poems' },
+    { title: 'The Lady of Shalott', author: 'Tennyson', search: 'Tennyson poems' },
+  ],
+  Euphemism: [
+    { title: 'Hamlet', author: 'Shakespeare', search: 'Hamlet Shakespeare' },
+    { title: 'Henry IV', author: 'Shakespeare', search: 'Henry IV Shakespeare' },
+    { title: 'Sense and Sensibility', author: 'Jane Austen', search: 'Sense Sensibility Austen' },
+  ],
+  Allegory: [
+    { title: "The Pilgrim's Progress", author: 'John Bunyan', search: "Pilgrim's Progress Bunyan" },
+    { title: 'The Faerie Queene', author: 'Edmund Spenser', search: 'Faerie Queene Spenser' },
+    { title: 'The Divine Comedy', author: 'Dante', search: 'Divine Comedy Dante' },
+  ],
+  Motif: [
+    { title: 'Macbeth', author: 'Shakespeare', search: 'Macbeth Shakespeare' },
+    { title: 'Hamlet', author: 'Shakespeare', search: 'Hamlet Shakespeare' },
+    { title: 'Wuthering Heights', author: 'Emily Bronte', search: 'Wuthering Heights Bronte' },
+  ],
+  Paradox: [
+    { title: 'Hamlet', author: 'Shakespeare', search: 'Hamlet Shakespeare' },
+    { title: 'King Lear', author: 'Shakespeare', search: 'King Lear Shakespeare' },
+    { title: 'Songs of Experience', author: 'William Blake', search: 'Songs of Experience Blake' },
+  ],
+  'Extended Metaphor': [
+    { title: 'As You Like It', author: 'Shakespeare', search: 'As You Like It Shakespeare' },
+    { title: 'The Divine Comedy', author: 'Dante', search: 'Divine Comedy Dante' },
+    { title: 'Pilgrim Progress', author: 'Bunyan', search: "Pilgrim's Progress Bunyan" },
+  ],
+  'Stream of Consciousness': [
+    { title: 'Ulysses', author: 'James Joyce', search: 'Ulysses Joyce' },
+    { title: 'Mrs Dalloway', author: 'Virginia Woolf', search: 'Mrs Dalloway Woolf' },
+    { title: 'The Waves', author: 'Virginia Woolf', search: 'The Waves Woolf' },
+  ],
+  Tone: [
+    { title: 'Pride and Prejudice', author: 'Jane Austen', search: 'Pride and Prejudice Austen' },
+    { title: 'The Raven', author: 'Edgar Allan Poe', search: 'Raven Poe' },
+    { title: 'Northanger Abbey', author: 'Jane Austen', search: 'Northanger Abbey Austen' },
+  ],
+  Mood: [
+    { title: 'The Fall of the House of Usher', author: 'Edgar Allan Poe', search: 'Fall House of Usher Poe' },
+    { title: 'Wuthering Heights', author: 'Emily Bronte', search: 'Wuthering Heights Bronte' },
+    { title: 'The Hound of the Baskervilles', author: 'Arthur Conan Doyle', search: 'Hound Baskervilles Doyle' },
+  ],
+  Understatement: [
+    { title: 'Emma', author: 'Jane Austen', search: 'Emma Austen' },
+    { title: 'The Hitchhiker Guide to the Galaxy', author: 'Douglas Adams', search: 'Hitchhiker Guide Adams' },
+    { title: 'Sense and Sensibility', author: 'Jane Austen', search: 'Sense Sensibility Austen' },
+  ],
+  Sarcasm: [
+    { title: 'Julius Caesar', author: 'Shakespeare', search: 'Julius Caesar Shakespeare' },
+    { title: 'The Importance of Being Earnest', author: 'Oscar Wilde', search: 'Importance of Being Earnest Wilde' },
+    { title: 'Emma', author: 'Jane Austen', search: 'Emma Austen' },
+  ],
+  'Point of View': [
+    { title: 'Moby Dick', author: 'Herman Melville', search: 'Moby Dick Melville' },
+    { title: 'Jane Eyre', author: 'Charlotte Bronte', search: 'Jane Eyre Bronte' },
+    { title: 'David Copperfield', author: 'Charles Dickens', search: 'David Copperfield Dickens' },
+  ],
+  Flashforward: [
+    { title: 'A Christmas Carol', author: 'Charles Dickens', search: 'Christmas Carol Dickens' },
+    { title: 'The Time Machine', author: 'H.G. Wells', search: 'Time Machine Wells' },
+    { title: 'Bleak House', author: 'Charles Dickens', search: 'Bleak House Dickens' },
+  ],
 }
 
-// Per-device source mapping: which books to pull from for each literary device.
-// Multiple sources give variety across refreshes.
-export const DEVICE_SOURCES = {
-  Simile:              ['keats', 'homer_iliad', 'shelley_fr'],
-  Metaphor:            ['shakespeare', 'keats', 'eliot_mm'],
-  Personification:     ['keats', 'shelley_fr', 'poe'],
-  Alliteration:        ['shakespeare', 'poe', 'keats'],
-  Onomatopoeia:        ['poe', 'keats', 'shakespeare'],
-  Hyperbole:           ['shakespeare', 'swift_gt', 'dickens_gc'],
-  Idiom:               ['shakespeare', 'dickens_ttc', 'dickens_gc'],
-  Imagery:             ['keats', 'hardy_tess', 'bronte_je'],
-  Irony:               ['austen_pp', 'swift_gt', 'dickens_ttc'],
-  Symbolism:           ['hardy_tess', 'bronte_je', 'shelley_fr'],
-  Foreshadowing:       ['dickens_gc', 'hardy_tess', 'shelley_fr'],
-  Flashback:           ['dickens_gc', 'bronte_je', 'hardy_rn'],
-  Dialogue:            ['dickens_ttc', 'austen_pp', 'bronte_je'],
-  Oxymoron:            ['shakespeare', 'keats', 'dickens_ttc'],
-  Allusion:            ['shakespeare', 'eliot_mm', 'bunyan'],
-  Anaphora:            ['shakespeare', 'dickens_ttc', 'bunyan'],
-  Juxtaposition:       ['dickens_ttc', 'austen_pp', 'hardy_tess'],
-  Assonance:           ['keats', 'poe', 'shelley_fr'],
-  Euphemism:           ['austen_pp', 'dickens_gc', 'swift_gt'],
-  Allegory:            ['bunyan', 'swift_gt', 'shakespeare'],
-  Motif:               ['hardy_tess', 'bronte_je', 'dickens_gc'],
-  Paradox:             ['shakespeare', 'bunyan', 'swift_gt'],
-  'Extended Metaphor': ['shakespeare', 'keats', 'bunyan'],
-  'Stream of Consciousness': ['hardy_rn', 'bronte_je', 'eliot_mm'],
-  Tone:                ['poe', 'austen_pp', 'dickens_ttc'],
-  Mood:                ['poe', 'hardy_tess', 'shelley_fr'],
-  Understatement:      ['austen_pp', 'swift_gt', 'dickens_gc'],
-  Sarcasm:             ['austen_pp', 'swift_gt', 'dickens_ttc'],
-  'Point of View':     ['bronte_je', 'austen_pp', 'defoe_rc'],
-  Flashforward:        ['dickens_gc', 'hardy_rn', 'shelley_fr'],
-}
-
-/**
- * Fetch a real passage from a Gutenberg book that demonstrates a literary device.
- * Returns { passage, source, bookTitle, bookId }
- */
-export async function fetchGutenbergPassage(deviceName, sourceKey) {
-  const book = KNOWN_BOOKS[sourceKey]
-  if (!book) throw new Error(`Unknown source key: ${sourceKey}`)
-
-  // 1. Get the plain text download URL from Gutendex
-  const metaRes = await fetch(`https://gutendex.com/books/${book.id}`)
-  if (!metaRes.ok) throw new Error(`Gutendex lookup failed for book ${book.id}`)
-  const meta = await metaRes.json()
-
-  const formats = meta.formats || {}
+// Search Gutendex for a book and return plain text download URL
+async function findBook(search) {
+  const res = await fetch(`https://gutendex.com/books/?search=${encodeURIComponent(search)}&languages=en`)
+  if (!res.ok) throw new Error('Gutendex search failed')
+  const data = await res.json()
+  const book = data.results?.[0]
+  if (!book) throw new Error(`No Gutenberg result for: ${search}`)
+  // Prefer plain text UTF-8
+  const formats = book.formats || {}
   const textUrl =
     formats['text/plain; charset=utf-8'] ||
     formats['text/plain; charset=us-ascii'] ||
     formats['text/plain']
+  if (!textUrl) throw new Error(`No plain text for: ${book.title}`)
+  return { title: book.title, author: book.authors?.[0]?.name || 'Unknown', textUrl }
+}
 
-  if (!textUrl) throw new Error(`No plain text available for ${book.title}`)
+// Fetch the plain text and return a 6000-char chunk from partway in (avoids boilerplate header)
+async function fetchChunk(textUrl) {
+  const res = await fetch(textUrl)
+  if (!res.ok) throw new Error('Failed to fetch Gutenberg text')
+  const full = await res.text()
+  // Skip Project Gutenberg header (~3000 chars) and grab a meaty middle section
+  const start = Math.min(3000, Math.floor(full.length * 0.05))
+  return full.slice(start, start + 6000)
+}
 
-  // 2. Fetch the raw text — but only a portion to keep it manageable.
-  // We use a range header to grab ~80KB from the middle of the book
-  // (skipping Gutenberg headers/footers at start and end).
-  const textRes = await fetch(textUrl, {
-    headers: { Range: 'bytes=40000-120000' }
-  })
-  // Range requests return 206; fall back gracefully if not supported
-  const rawText = await textRes.text()
+// Main export: fetch 3 real passages from Gutenberg for a given device
+export async function fetchGutenbergPassages(deviceName, ageGroup) {
+  const sources = DEVICE_SOURCES[deviceName] || []
+  const passages = []
+  const errors = []
 
-  // 3. Clean and trim the text
-  const cleaned = rawText
-    .replace(/\r\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-    .slice(0, 60000) // cap at ~60k chars for the AI context
+  for (const source of sources) {
+    if (passages.length >= 3) break
+    try {
+      const { title, author, textUrl } = await findBook(source.search)
+      const chunk = await fetchChunk(textUrl)
 
-  return { rawText: cleaned, bookTitle: meta.title, bookId: book.id, author: (meta.authors?.[0]?.name || '') }
+      // Ask Claude to find the best passage for this device within the real text
+      const raw = await claudeChat({
+        system: 'Return ONLY valid JSON, no markdown. Structure: {"text":"...","source":"...","explanation":"..."}',
+        messages: [{
+          role: 'user',
+          content: `From the following excerpt of "${title}" by ${author}, find the single best example of the literary device "${deviceName}" for a student aged ${ageGroup}. Extract the exact relevant passage (2–5 sentences). If no clear example exists, use the closest relevant passage.
+
+Text excerpt:
+${chunk}
+
+Return JSON with:
+- text: the exact quoted passage from the text above
+- source: "${title} by ${author}"
+- explanation: one sentence explaining how this passage demonstrates ${deviceName}`
+        }]
+      })
+
+      const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim())
+      if (parsed.text && parsed.source && parsed.explanation) {
+        passages.push(parsed)
+      }
+    } catch (e) {
+      errors.push(`${source.title}: ${e.message}`)
+    }
+  }
+
+  if (passages.length === 0) {
+    throw new Error('Could not fetch any passages from Project Gutenberg. ' + errors.join('; '))
+  }
+
+  return passages
 }
