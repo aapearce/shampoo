@@ -1,0 +1,25 @@
+{
+  "name": "SHAMPOO — Creative Writing Academy",
+  "short_name": "SHAMPOO",
+  "description": "A creative writing academy for young writers",
+  "start_url": "/shampoo/",
+  "scope": "/shampoo/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0c1a2e",
+  "theme_color": "#0ea5e9",
+  "icons": [
+    {
+      "src": "/shampoo/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/shampoo/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
