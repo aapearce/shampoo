@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import { claudeChat } from '../lib/claude'
 import { fetchGutenbergPassages } from '../lib/gutenberg'
@@ -47,64 +47,47 @@ const S = {
 }
 
 // ── Flip card ──────────────────────────────────────────────────────────────────
-// flippedName is the name of the card currently showing its back (controlled externally)
-function FlashCard({ device, isSelected, flippedName, onFlip, onExplore }) {
-  const flipped = flippedName === device.name
+function FlashCard({ device, isActive, onToggle }) {
+  const flipped = isActive
 
   return (
     <div
-      onClick={() => onFlip(device.name)}
+      onClick={onToggle}
       className="cursor-pointer select-none"
       style={{ perspective: '800px', height: '140px' }}
     >
-      <div
-        style={{
-          position: 'relative', width: '100%', height: '100%',
-          transformStyle: 'preserve-3d',
-          transition: 'transform 0.45s ease',
-          transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
-        }}
-      >
+      <div style={{
+        position: 'relative', width: '100%', height: '100%',
+        transformStyle: 'preserve-3d',
+        transition: 'transform 0.45s ease',
+        transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+      }}>
         {/* Front */}
         <div style={{
           position: 'absolute', inset: 0, backfaceVisibility: 'hidden',
-          background: isSelected ? 'rgba(212,175,55,0.08)' : 'linear-gradient(135deg,#112040,#0B1628)',
-          border: isSelected ? '1px solid #D4AF37' : '1px solid #1A3358',
+          background: 'linear-gradient(135deg,#112040,#0B1628)',
+          border: '1px solid #1A3358',
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px',
         }}>
           <span style={{ fontSize: '28px' }}>{device.emoji}</span>
-          <span className="font-serif text-sm text-center" style={isSelected ? S.label : S.page}>{device.name}</span>
-          <span className="font-sans text-xs" style={{ color: 'rgba(138,122,104,0.7)' }}>tap to flip</span>
+          <span className="font-serif text-sm text-center" style={S.page}>{device.name}</span>
+          <span className="font-sans text-xs" style={{ color: 'rgba(138,122,104,0.7)' }}>tap to explore</span>
         </div>
 
-        {/* Back */}
+        {/* Back — definition only, tap to close */}
         <div style={{
           position: 'absolute', inset: 0, backfaceVisibility: 'hidden',
           transform: 'rotateY(180deg)',
           background: 'linear-gradient(135deg,#1A3358,#112040)',
-          border: '1px solid #2A4A6B',
+          border: '1px solid #D4AF37',
           display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'space-between',
-          padding: '14px 12px 10px',
+          alignItems: 'center', justifyContent: 'center', gap: '10px',
+          padding: '14px 12px',
         }}>
+          <span className="font-serif text-sm text-center" style={S.label}>{device.name}</span>
           <p className="font-sans text-xs text-center leading-relaxed" style={S.body}>{device.def}</p>
-          <div className="flex gap-2 w-full justify-center">
-            <button
-              onClick={e => { e.stopPropagation(); onExplore(device) }}
-              className="font-sans text-xs tracking-widest uppercase px-3 py-1.5 transition-colors"
-              style={{ background: 'rgba(212,175,55,0.15)', color: '#D4AF37', border: '1px solid rgba(212,175,55,0.4)' }}
-            >
-              Examples →
-            </button>
-            <button
-              onClick={e => { e.stopPropagation(); onFlip(device.name) }}
-              className="font-sans text-xs px-2 py-1.5 transition-colors"
-              style={{ color: '#8A7A68', border: '1px solid #1A3358' }}
-            >
-              ✕
-            </button>
-          </div>
+          <span className="font-sans text-xs" style={{ color: 'rgba(138,122,104,0.5)' }}>tap to close</span>
         </div>
       </div>
     </div>
@@ -115,7 +98,7 @@ function FlashCard({ device, isSelected, flippedName, onFlip, onExplore }) {
 function ClassicCard({ c }) {
   const [expanded, setExpanded] = useState(false)
   const [fullText, setFullText] = useState('')
-  const [loading, setLoading]   = useState(false)
+  const [loading,  setLoading]  = useState(false)
 
   async function handleExpand() {
     if (expanded) { setExpanded(false); return }
@@ -162,19 +145,19 @@ function ClassicCard({ c }) {
 }
 
 // ── Examples panel (right column) ─────────────────────────────────────────────
-function ExamplesPanel({ device, ageGroup, cache, setCache }) {
+function ExamplesPanel({ device, ageGroup }) {
   const [loading,  setLoading]  = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
-  const data = cache[device?.name]
+  const [data,     setData]     = useState(null)
 
+  // Reload fresh every time device changes — no caching, no persistence
   useEffect(() => {
-    if (!device) return
-    if (cache[device.name]) return
+    if (!device) { setData(null); return }
     loadExamples()
   }, [device?.name]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadExamples() {
-    setLoading(true); setErrorMsg('')
+    setData(null); setLoading(true); setErrorMsg('')
     try {
       const [gutenbergPassages, generatedRaw] = await Promise.all([
         fetchGutenbergPassages(device.name, ageGroup),
@@ -186,25 +169,25 @@ function ExamplesPanel({ device, ageGroup, cache, setCache }) {
         })
       ])
       const gen = JSON.parse(generatedRaw.replace(/```json|```/g, '').trim())
-      setCache(prev => ({ ...prev, [device.name]: { classic: gutenbergPassages, generated: gen.generated || [] } }))
+      setData({ classic: gutenbergPassages, generated: gen.generated || [] })
     } catch(e) { setErrorMsg(e.message || 'Failed to load examples.') }
     setLoading(false)
   }
 
   // Empty state
   if (!device) return (
-    <div className="h-full flex flex-col items-center justify-center gap-3 p-8"
+    <div className="flex flex-col items-center justify-center gap-3 p-8"
       style={{ border: '1px solid #1A3358', minHeight: '400px' }}>
       <span className="text-4xl opacity-20">📖</span>
       <p className="font-sans text-xs text-center" style={S.hint}>
-        Flip a card and tap<br /><span style={S.label}>Examples →</span> to see passages here
+        Tap any card to flip it open<br />and see examples here
       </p>
     </div>
   )
 
   return (
     <div className="fade-up flex flex-col" style={{ height: '100%' }}>
-      {/* Sticky header */}
+      {/* Header */}
       <div className="p-4 shrink-0 flex items-center gap-3"
         style={{ background: 'linear-gradient(135deg,#112040,#0B1628)', border: '1px solid #1A3358', borderBottom: '0' }}>
         <span className="text-2xl">{device.emoji}</span>
@@ -230,7 +213,6 @@ function ExamplesPanel({ device, ageGroup, cache, setCache }) {
         )}
         {data && (
           <div className="p-4 space-y-5">
-            {/* Generated examples */}
             <div>
               <p className="font-sans text-xs tracking-widest uppercase mb-3" style={S.label}>Examples</p>
               <div className="space-y-3">
@@ -242,11 +224,8 @@ function ExamplesPanel({ device, ageGroup, cache, setCache }) {
                 ))}
               </div>
             </div>
-            {/* Classic passages */}
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <p className="font-sans text-xs tracking-widest uppercase" style={S.label}>From Classic Literature</p>
-              </div>
+              <p className="font-sans text-xs tracking-widest uppercase mb-3" style={S.label}>From Classic Literature</p>
               <div className="space-y-3">
                 {data.classic.map((c, i) => (
                   <ClassicCard key={i} c={c} />
@@ -344,25 +323,19 @@ function CustomDevicePanel({ ageGroup }) {
 export default function LiteraryDevices() {
   const { ageGroup } = useApp()
   const [search,   setSearch]   = useState('')
-  const [selected, setSelected] = useState(null)   // device object or 'custom'
-  const [flipped,  setFlipped]  = useState(null)   // name of currently flipped card
-  const [cache,    setCache]    = useState({})
+  const [active,   setActive]   = useState(null)   // name of the currently flipped card, or 'custom'
 
   const filtered = DEVICES.filter(d =>
     d.name.toLowerCase().includes(search.toLowerCase()) ||
     d.def.toLowerCase().includes(search.toLowerCase())
   )
 
-  function handleFlip(name) {
-    // Toggle: flip this card, or flip back if already showing
-    setFlipped(f => f === name ? null : name)
+  // Toggle: tap same card → flip back and clear. Tap new card → switch.
+  function handleToggle(device) {
+    setActive(prev => prev?.name === device.name ? null : device)
   }
 
-  function handleExplore(device) {
-    setSelected(device)
-    // Flip this card back to front now that we're showing examples
-    setFlipped(null)
-  }
+  const selectedDevice = active && active !== 'custom' ? active : null
 
   return (
     <div className="fade-up">
@@ -372,7 +345,7 @@ export default function LiteraryDevices() {
         <h2 className="font-serif text-3xl mb-2" style={S.page}>Literary Devices</h2>
         <div className="gold-bar w-16 mb-3" />
         <p className="font-sans text-sm" style={S.body}>
-          Flip a card to see its definition, tap <span style={S.label}>Examples →</span> to explore passages alongside the cards.
+          Tap a card to flip it open and explore examples. Tap again to close.
         </p>
       </div>
 
@@ -382,9 +355,9 @@ export default function LiteraryDevices() {
           placeholder="Search devices..."
           className="flex-1 font-sans text-xs p-3 focus:outline-none" style={S.input} />
         <button
-          onClick={() => { setSelected('custom'); setFlipped(null) }}
+          onClick={() => setActive(a => a === 'custom' ? null : 'custom')}
           className="font-sans text-xs tracking-widest uppercase px-4 py-3 transition-all"
-          style={selected === 'custom'
+          style={active === 'custom'
             ? { background: 'rgba(212,175,55,0.15)', color: '#D4AF37', border: '1px solid rgba(212,175,55,0.4)' }
             : { border: '1px solid #1A3358', color: '#C8B99A' }
           }>
@@ -392,35 +365,28 @@ export default function LiteraryDevices() {
         </button>
       </div>
 
-      {/* ── Two-column layout ── */}
+      {/* Two-column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" style={{ alignItems: 'start' }}>
 
-        {/* Left: scrollable card grid */}
+        {/* Left: card grid */}
         <div className="overflow-y-auto" style={{ maxHeight: '75vh' }}>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pr-1">
             {filtered.map(d => (
               <FlashCard
                 key={d.name}
                 device={d}
-                isSelected={selected?.name === d.name}
-                flippedName={flipped}
-                onFlip={handleFlip}
-                onExplore={handleExplore}
+                isActive={active?.name === d.name}
+                onToggle={() => handleToggle(d)}
               />
             ))}
           </div>
         </div>
 
-        {/* Right: sticky examples panel */}
+        {/* Right: sticky panel */}
         <div style={{ position: 'sticky', top: '1rem', maxHeight: '75vh', display: 'flex', flexDirection: 'column' }}>
-          {selected === 'custom'
+          {active === 'custom'
             ? <CustomDevicePanel ageGroup={ageGroup} />
-            : <ExamplesPanel
-                device={selected}
-                ageGroup={ageGroup}
-                cache={cache}
-                setCache={setCache}
-              />
+            : <ExamplesPanel device={selectedDevice} ageGroup={ageGroup} />
           }
         </div>
       </div>
