@@ -3,37 +3,38 @@ import { useApp } from '../context/AppContext'
 import { claudeChat } from '../lib/claude'
 import { fetchGutenbergPassages } from '../lib/gutenberg'
 
+// ── Device palette — each gets a distinct colour family ───────────────────────
 const DEVICES = [
-  { name: 'Simile',                   def: 'A comparison using "like" or "as"',                               emoji: '🌸' },
-  { name: 'Metaphor',                 def: 'A direct comparison without "like" or "as"',                      emoji: '🌻' },
-  { name: 'Personification',          def: 'Giving human qualities to non-human things',                     emoji: '🪻' },
-  { name: 'Alliteration',             def: 'Repetition of the same initial consonant sound',                 emoji: '🌷' },
-  { name: 'Onomatopoeia',             def: 'Words that sound like what they describe',                       emoji: '🥐' },
-  { name: 'Hyperbole',                def: 'Extreme exaggeration for effect',                                emoji: '🍰' },
-  { name: 'Idiom',                    def: 'A phrase whose meaning differs from its literal words',          emoji: '🍩' },
-  { name: 'Imagery',                  def: 'Language that appeals to the senses',                            emoji: '🌹' },
-  { name: 'Irony',                    def: 'When the opposite of what is expected occurs',                   emoji: '🐝' },
-  { name: 'Symbolism',                def: 'Using an object or action to represent something else',          emoji: '🦋' },
-  { name: 'Foreshadowing',            def: 'Hints at future events in the story',                            emoji: '🍜' },
-  { name: 'Flashback',                def: 'A scene set in an earlier time than the main story',             emoji: '🐠' },
-  { name: 'Dialogue',                 def: 'Conversation between characters',                                emoji: '🧁' },
-  { name: 'Oxymoron',                 def: 'Two contradictory terms used together',                          emoji: '🦊' },
-  { name: 'Allusion',                 def: 'A reference to a well-known person, place, or event',            emoji: '🦚' },
-  { name: 'Anaphora',                 def: 'Repetition of a word or phrase at the start of successive lines',emoji: '🌺' },
-  { name: 'Juxtaposition',            def: 'Placing two contrasting things side by side',                    emoji: '🌿' },
-  { name: 'Assonance',                def: 'Repetition of vowel sounds in nearby words',                    emoji: '🍃' },
-  { name: 'Euphemism',                def: 'A mild word substituted for one that might seem harsh',          emoji: '🌾' },
-  { name: 'Allegory',                 def: 'A story with a hidden meaning, often moral or political',       emoji: '🪷' },
-  { name: 'Motif',                    def: 'A recurring element that has symbolic significance',             emoji: '🌙' },
-  { name: 'Paradox',                  def: 'A statement that seems contradictory but contains a truth',     emoji: '🌊' },
-  { name: 'Extended Metaphor',        def: 'A metaphor sustained throughout a passage or whole work',        emoji: '🦚' },
-  { name: 'Stream of Consciousness',  def: 'Writing that depicts the uninterrupted flow of thoughts',       emoji: '🌀' },
-  { name: 'Tone',                     def: "The author's attitude toward the subject or audience",           emoji: '🎵' },
-  { name: 'Mood',                     def: 'The atmosphere or emotional feeling of a piece',                 emoji: '🌅' },
-  { name: 'Understatement',           def: 'Deliberately making something seem less than it is',             emoji: '🤫' },
-  { name: 'Sarcasm',                  def: 'A form of irony intended to mock or show contempt',              emoji: '😏' },
-  { name: 'Point of View',            def: 'The perspective from which a story is narrated',                emoji: '👁️' },
-  { name: 'Flashforward',             def: 'A scene set in a future time from the main narrative',           emoji: '⏩' },
+  { name: 'Simile',                   def: 'A comparison using "like" or "as"',                               emoji: '🌸', hue: '#7C3AED', accent: '#C4B5FD' },
+  { name: 'Metaphor',                 def: 'A direct comparison without "like" or "as"',                      emoji: '🌻', hue: '#B45309', accent: '#FCD34D' },
+  { name: 'Personification',          def: 'Giving human qualities to non-human things',                     emoji: '🪻', hue: '#0F766E', accent: '#5EEAD4' },
+  { name: 'Alliteration',             def: 'Repetition of the same initial consonant sound',                 emoji: '🌷', hue: '#BE185D', accent: '#FBCFE8' },
+  { name: 'Onomatopoeia',             def: 'Words that sound like what they describe',                       emoji: '🥐', hue: '#B45309', accent: '#FDE68A' },
+  { name: 'Hyperbole',                def: 'Extreme exaggeration for effect',                                emoji: '🍰', hue: '#DC2626', accent: '#FCA5A5' },
+  { name: 'Idiom',                    def: 'A phrase whose meaning differs from its literal words',          emoji: '🍩', hue: '#7C3AED', accent: '#DDD6FE' },
+  { name: 'Imagery',                  def: 'Language that appeals to the senses',                            emoji: '🌹', hue: '#0369A1', accent: '#7DD3FC' },
+  { name: 'Irony',                    def: 'When the opposite of what is expected occurs',                   emoji: '🐝', hue: '#4D7C0F', accent: '#BEF264' },
+  { name: 'Symbolism',                def: 'Using an object or action to represent something else',          emoji: '🦋', hue: '#1D4ED8', accent: '#93C5FD' },
+  { name: 'Foreshadowing',            def: 'Hints at future events in the story',                            emoji: '🍜', hue: '#374151', accent: '#9CA3AF' },
+  { name: 'Flashback',                def: 'A scene set in an earlier time than the main story',             emoji: '🐠', hue: '#0F766E', accent: '#99F6E4' },
+  { name: 'Dialogue',                 def: 'Conversation between characters',                                emoji: '🧁', hue: '#B45309', accent: '#FEF08A' },
+  { name: 'Oxymoron',                 def: 'Two contradictory terms used together',                          emoji: '🦊', hue: '#DC2626', accent: '#FEE2E2' },
+  { name: 'Allusion',                 def: 'A reference to a well-known person, place, or event',            emoji: '🦚', hue: '#065F46', accent: '#6EE7B7' },
+  { name: 'Anaphora',                 def: 'Repetition of a word or phrase at the start of successive lines',emoji: '🌺', hue: '#BE185D', accent: '#F9A8D4' },
+  { name: 'Juxtaposition',            def: 'Placing two contrasting things side by side',                    emoji: '🌿', hue: '#1E3A5F', accent: '#7DD3FC' },
+  { name: 'Assonance',                def: 'Repetition of vowel sounds in nearby words',                    emoji: '🍃', hue: '#166534', accent: '#86EFAC' },
+  { name: 'Euphemism',                def: 'A mild word substituted for one that might seem harsh',          emoji: '🌾', hue: '#78350F', accent: '#FDE68A' },
+  { name: 'Allegory',                 def: 'A story with a hidden meaning, often moral or political',       emoji: '🪷', hue: '#5B21B6', accent: '#C4B5FD' },
+  { name: 'Motif',                    def: 'A recurring element that has symbolic significance',             emoji: '🌙', hue: '#1E3A5F', accent: '#A5B4FC' },
+  { name: 'Paradox',                  def: 'A statement that seems contradictory but contains a truth',     emoji: '🌊', hue: '#0369A1', accent: '#BAE6FD' },
+  { name: 'Extended Metaphor',        def: 'A metaphor sustained throughout a passage or whole work',        emoji: '🦚', hue: '#065F46', accent: '#A7F3D0' },
+  { name: 'Stream of Consciousness',  def: 'Writing that depicts the uninterrupted flow of thoughts',       emoji: '🌀', hue: '#312E81', accent: '#C7D2FE' },
+  { name: 'Tone',                     def: "The author's attitude toward the subject or audience",           emoji: '🎵', hue: '#831843', accent: '#FBCFE8' },
+  { name: 'Mood',                     def: 'The atmosphere or emotional feeling of a piece',                 emoji: '🌅', hue: '#92400E', accent: '#FCD34D' },
+  { name: 'Understatement',           def: 'Deliberately making something seem less than it is',             emoji: '🤫', hue: '#374151', accent: '#D1D5DB' },
+  { name: 'Sarcasm',                  def: 'A form of irony intended to mock or show contempt',              emoji: '😏', hue: '#7F1D1D', accent: '#FCA5A5' },
+  { name: 'Point of View',            def: 'The perspective from which a story is narrated',                emoji: '👁️', hue: '#0C4A6E', accent: '#7DD3FC' },
+  { name: 'Flashforward',             def: 'A scene set in a future time from the main narrative',           emoji: '⏩', hue: '#1E3A5F', accent: '#A5F3FC' },
 ]
 
 const S = {
@@ -48,46 +49,130 @@ const S = {
 
 // ── Flip card ──────────────────────────────────────────────────────────────────
 function FlashCard({ device, isActive, onToggle }) {
+  const [hover, setHover] = useState(false)
   const flipped = isActive
 
   return (
     <div
       onClick={onToggle}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       className="cursor-pointer select-none"
-      style={{ perspective: '800px', height: '140px' }}
+      style={{
+        perspective: '1000px',
+        height: '200px',
+        transition: 'transform 0.18s ease',
+        transform: hover && !flipped ? 'translateY(-4px) scale(1.02)' : 'translateY(0) scale(1)',
+      }}
     >
       <div style={{
         position: 'relative', width: '100%', height: '100%',
         transformStyle: 'preserve-3d',
-        transition: 'transform 0.45s ease',
+        transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
         transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
       }}>
-        {/* Front */}
+
+        {/* ── Front face ── */}
         <div style={{
           position: 'absolute', inset: 0, backfaceVisibility: 'hidden',
-          background: 'linear-gradient(135deg,#112040,#0B1628)',
-          border: '1px solid #1A3358',
+          background: `linear-gradient(145deg, ${device.hue}22 0%, #0B1628 60%, ${device.hue}11 100%)`,
+          border: `1px solid ${device.hue}55`,
+          boxShadow: hover
+            ? `0 8px 32px ${device.hue}33, inset 0 0 20px ${device.hue}11`
+            : `0 2px 8px rgba(0,0,0,0.4)`,
           display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px',
+          alignItems: 'center', justifyContent: 'space-between',
+          padding: '18px 14px 14px',
+          overflow: 'hidden',
         }}>
-          <span style={{ fontSize: '28px' }}>{device.emoji}</span>
-          <span className="font-serif text-sm text-center" style={S.page}>{device.name}</span>
-          <span className="font-sans text-xs" style={{ color: 'rgba(138,122,104,0.7)' }}>tap to explore</span>
+          {/* Corner ornaments */}
+          <svg style={{ position: 'absolute', top: 6, left: 6, opacity: 0.35 }} width="18" height="18" viewBox="0 0 18 18">
+            <path d="M1 9 L1 1 L9 1" stroke={device.accent} strokeWidth="1.5" fill="none"/>
+          </svg>
+          <svg style={{ position: 'absolute', top: 6, right: 6, opacity: 0.35 }} width="18" height="18" viewBox="0 0 18 18">
+            <path d="M17 9 L17 1 L9 1" stroke={device.accent} strokeWidth="1.5" fill="none"/>
+          </svg>
+          <svg style={{ position: 'absolute', bottom: 6, left: 6, opacity: 0.35 }} width="18" height="18" viewBox="0 0 18 18">
+            <path d="M1 9 L1 17 L9 17" stroke={device.accent} strokeWidth="1.5" fill="none"/>
+          </svg>
+          <svg style={{ position: 'absolute', bottom: 6, right: 6, opacity: 0.35 }} width="18" height="18" viewBox="0 0 18 18">
+            <path d="M17 9 L17 17 L9 17" stroke={device.accent} strokeWidth="1.5" fill="none"/>
+          </svg>
+
+          {/* Accent stripe at top */}
+          <div style={{
+            position: 'absolute', top: 0, left: '20%', right: '20%', height: '2px',
+            background: `linear-gradient(90deg, transparent, ${device.accent}88, transparent)`,
+          }} />
+
+          {/* Content */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '36px', lineHeight: 1, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))' }}>
+              {device.emoji}
+            </span>
+            <span
+              className="font-serif text-base text-center leading-tight"
+              style={{ color: '#F5ECD7', letterSpacing: '0.02em', fontWeight: 500 }}
+            >
+              {device.name}
+            </span>
+            <span style={{
+              display: 'inline-block', width: 28, height: 1,
+              background: `linear-gradient(90deg, transparent, ${device.accent}99, transparent)`,
+            }} />
+          </div>
+
+          <span
+            className="font-sans text-xs"
+            style={{ color: `${device.accent}77`, letterSpacing: '0.08em', fontSize: '10px', textTransform: 'uppercase' }}
+          >
+            tap to explore
+          </span>
         </div>
 
-        {/* Back — definition only, tap to close */}
+        {/* ── Back face — definition ── */}
         <div style={{
           position: 'absolute', inset: 0, backfaceVisibility: 'hidden',
           transform: 'rotateY(180deg)',
-          background: 'linear-gradient(135deg,#1A3358,#112040)',
-          border: '1px solid #D4AF37',
+          background: `linear-gradient(145deg, #0B1628 0%, ${device.hue}33 100%)`,
+          border: `1px solid ${device.accent}55`,
+          boxShadow: `0 8px 32px ${device.hue}44`,
           display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: '10px',
-          padding: '14px 12px',
+          alignItems: 'center', justifyContent: 'space-between',
+          padding: '18px 16px 14px',
+          overflow: 'hidden',
         }}>
-          <span className="font-serif text-sm text-center" style={S.label}>{device.name}</span>
-          <p className="font-sans text-xs text-center leading-relaxed" style={S.body}>{device.def}</p>
-          <span className="font-sans text-xs" style={{ color: 'rgba(138,122,104,0.5)' }}>tap to close</span>
+          {/* Radial glow */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: `radial-gradient(ellipse at 50% 40%, ${device.hue}22 0%, transparent 70%)`,
+            pointerEvents: 'none',
+          }} />
+
+          {/* Bottom accent stripe */}
+          <div style={{
+            position: 'absolute', bottom: 0, left: '15%', right: '15%', height: '2px',
+            background: `linear-gradient(90deg, transparent, ${device.accent}66, transparent)`,
+          }} />
+
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px', zIndex: 1 }}>
+            <span style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: device.accent, opacity: 0.85 }}>
+              {device.name}
+            </span>
+            <p
+              className="font-serif text-sm text-center leading-relaxed"
+              style={{ color: '#F5ECD7', maxWidth: '160px' }}
+            >
+              {device.def}
+            </p>
+          </div>
+
+          <span
+            className="font-sans text-xs"
+            style={{ color: `${device.accent}66`, letterSpacing: '0.08em', fontSize: '10px', textTransform: 'uppercase', zIndex: 1 }}
+          >
+            tap to close
+          </span>
         </div>
       </div>
     </div>
@@ -150,7 +235,6 @@ function ExamplesPanel({ device, ageGroup }) {
   const [errorMsg, setErrorMsg] = useState('')
   const [data,     setData]     = useState(null)
 
-  // Reload fresh every time device changes — no caching, no persistence
   useEffect(() => {
     if (!device) { setData(null); return }
     loadExamples()
@@ -174,7 +258,6 @@ function ExamplesPanel({ device, ageGroup }) {
     setLoading(false)
   }
 
-  // Empty state
   if (!device) return (
     <div className="flex flex-col items-center justify-center gap-3 p-8"
       style={{ border: '1px solid #1A3358', minHeight: '400px' }}>
@@ -187,18 +270,20 @@ function ExamplesPanel({ device, ageGroup }) {
 
   return (
     <div className="fade-up flex flex-col" style={{ height: '100%' }}>
-      {/* Header */}
       <div className="p-4 shrink-0 flex items-center gap-3"
-        style={{ background: 'linear-gradient(135deg,#112040,#0B1628)', border: '1px solid #1A3358', borderBottom: '0' }}>
+        style={{
+          background: `linear-gradient(135deg, #112040, ${device.hue}33)`,
+          border: `1px solid ${device.accent}44`,
+          borderBottom: '0',
+        }}>
         <span className="text-2xl">{device.emoji}</span>
         <div>
           <h3 className="font-serif text-lg leading-tight" style={S.page}>{device.name}</h3>
-          <p className="font-sans text-xs mt-0.5" style={S.label}>{device.def}</p>
+          <p className="font-sans text-xs mt-0.5" style={{ color: device.accent }}>{device.def}</p>
         </div>
       </div>
 
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto" style={{ border: '1px solid #1A3358' }}>
+      <div className="flex-1 overflow-y-auto" style={{ border: `1px solid ${device.accent}33` }}>
         {loading && (
           <div className="p-8 flex flex-col items-center gap-2">
             <p className="font-sans text-xs tracking-widest uppercase" style={S.hint}>Finding examples...</p>
@@ -217,7 +302,7 @@ function ExamplesPanel({ device, ageGroup }) {
               <p className="font-sans text-xs tracking-widest uppercase mb-3" style={S.label}>Examples</p>
               <div className="space-y-3">
                 {data.generated.map((g, i) => (
-                  <div key={i} className="pl-3" style={{ borderLeft: '2px solid #1F3A5F' }}>
+                  <div key={i} className="pl-3" style={{ borderLeft: `2px solid ${device.hue}88` }}>
                     <p className="font-serif text-sm italic mb-1" style={S.page}>"{g.text}"</p>
                     <p className="font-sans text-xs" style={S.body}>{g.explanation}</p>
                   </div>
@@ -323,14 +408,13 @@ function CustomDevicePanel({ ageGroup }) {
 export default function LiteraryDevices() {
   const { ageGroup } = useApp()
   const [search,   setSearch]   = useState('')
-  const [active,   setActive]   = useState(null)   // name of the currently flipped card, or 'custom'
+  const [active,   setActive]   = useState(null)
 
   const filtered = DEVICES.filter(d =>
     d.name.toLowerCase().includes(search.toLowerCase()) ||
     d.def.toLowerCase().includes(search.toLowerCase())
   )
 
-  // Toggle: tap same card → flip back and clear. Tap new card → switch.
   function handleToggle(device) {
     setActive(prev => prev?.name === device.name ? null : device)
   }
@@ -368,9 +452,17 @@ export default function LiteraryDevices() {
       {/* Two-column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" style={{ alignItems: 'start' }}>
 
-        {/* Left: card grid */}
-        <div className="overflow-y-auto" style={{ maxHeight: '75vh' }}>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pr-1">
+        {/* Left: card grid — with atmospheric backdrop */}
+        <div
+          className="overflow-y-auto p-4"
+          style={{
+            maxHeight: '75vh',
+            background: 'linear-gradient(160deg, rgba(11,22,40,0.9) 0%, rgba(17,32,64,0.5) 100%)',
+            border: '1px solid #1A3358',
+            boxShadow: 'inset 0 0 60px rgba(0,0,0,0.4)',
+          }}
+        >
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {filtered.map(d => (
               <FlashCard
                 key={d.name}
